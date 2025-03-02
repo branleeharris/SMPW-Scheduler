@@ -513,12 +513,27 @@ const ScheduleBuilder = () => {
       const originalContent = downloadBtn.innerHTML;
       downloadBtn.innerHTML = '<span>Downloading...</span>';
       
+      // Temporarily disable the dark mode styles for consistent rendering
+      const tempDarkModeClass = document.body.classList.contains('dark');
+      if (tempDarkModeClass) {
+        document.body.classList.remove('dark');
+      }
+      
+      // Enhanced html2canvas settings
       html2canvas(scheduleRef.current, {
         backgroundColor: darkMode ? '#1a202c' : '#ffffff',
-        scale: 2, // Higher scale for better quality
+        scale: 3, // Increased for better quality
         logging: false,
-        useCORS: true
+        useCORS: true,
+        letterRendering: true, // Helps with text rendering
+        allowTaint: true, // Helps with some rendering issues
+        foreignObjectRendering: false // Sometimes helps with text rendering issues
       }).then(canvas => {
+        // Restore dark mode class if it was temporarily removed
+        if (tempDarkModeClass) {
+          document.body.classList.add('dark');
+        }
+        
         // Convert canvas to PNG image
         const image = canvas.toDataURL('image/png');
         
@@ -539,6 +554,11 @@ const ScheduleBuilder = () => {
           downloadBtn.innerHTML = originalContent;
         }
       }).catch(err => {
+        // Restore dark mode class in case of error
+        if (tempDarkModeClass) {
+          document.body.classList.add('dark');
+        }
+        
         console.error('Error generating screenshot:', err);
         alert('Could not create image. Please try again or use screenshot instructions.');
         if (downloadBtn) {
@@ -650,28 +670,25 @@ const ScheduleBuilder = () => {
                       padding: '4px 2px',
                       textAlign: 'center'
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
                         {slot.volunteers.map((volunteer, vIndex) => (
                           <div 
                             key={vIndex}
                             style={{ 
-                              display: 'table',
+                              display: 'inline-block',
                               width: '45%',
-                              height: '20px',
+                              height: '22px',
                               backgroundColor: colors[volunteer]?.bg || 'transparent',
                               color: colors[volunteer]?.text || 'inherit',
                               borderRadius: '2px',
                               fontSize: '11px',
-                              overflow: 'hidden'
+                              lineHeight: '22px', // CRITICAL: line-height exactly matching the element height
+                              textAlign: 'center',
+                              verticalAlign: 'top',
+                              margin: '0 2px'
                             }}
                           >
-                            <div style={{
-                              display: 'table-cell',
-                              verticalAlign: 'middle',
-                              textAlign: 'center',
-                            }}>
-                              {volunteer}
-                            </div>
+                            {volunteer}
                           </div>
                         ))}
                       </div>
@@ -681,29 +698,26 @@ const ScheduleBuilder = () => {
               </tbody>
             </table>
             
-            {/* Legend using table-cell for vertical alignment */}
+            {/* Legend using line-height for vertical alignment */}
             <div style={{ fontSize: '11px', marginBottom: '4px' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                 {Object.keys(shiftCounts).map((volunteer, index) => (
                   <div 
                     key={index}
                     style={{ 
-                      display: 'table',
+                      display: 'inline-block',
                       height: '18px',
+                      lineHeight: '18px', // CRITICAL: line-height exactly matching the element height
                       backgroundColor: colors[volunteer]?.bg || 'transparent',
                       color: colors[volunteer]?.text || 'inherit',
                       borderRadius: '2px',
-                      padding: '0 4px'
+                      fontSize: '11px',
+                      textAlign: 'center',
+                      padding: '0 4px',
+                      margin: '0 2px'
                     }}
                   >
-                    <div style={{
-                      display: 'table-cell',
-                      verticalAlign: 'middle',
-                      textAlign: 'center',
-                      fontSize: '11px'
-                    }}>
-                      {volunteer}:{shiftCounts[volunteer]}
-                    </div>
+                    {volunteer}:{shiftCounts[volunteer]}
                   </div>
                 ))}
               </div>
