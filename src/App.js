@@ -1,12 +1,16 @@
-import React, { useState, useRef } from 'react';
-import { Clock, Users, Calendar, ChevronDown, Plus, AlertTriangle, Camera, X, Smartphone, Download } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Clock, Users, Calendar, ChevronDown, Plus, AlertTriangle, Camera, X, Smartphone, Download, Info, Shuffle, Building, Sun, Moon } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 const ScheduleBuilder = () => {
   const [volunteers, setVolunteers] = useState(['', '', '', '', '']);
+  const [locationName, setLocationName] = useState('');
   const [timeRange, setTimeRange] = useState({ 
     startTime: '16:00', 
     endTime: '20:00', 
     interval: 30,
+    isCustomInterval: false,
+    customInterval: 30,
     date: new Date().toISOString().split('T')[0]
   });
   const [schedule, setSchedule] = useState([]);
@@ -16,6 +20,29 @@ const ScheduleBuilder = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [screenshotMode, setScreenshotMode] = useState(false);
   const [showSaveInstructions, setShowSaveInstructions] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+  
+  const scheduleRef = useRef(null);
+  
+  // Toggle dark mode
+  const toggleDarkMode = () => {
+    setDarkMode(prev => !prev);
+  };
+  
+  // Apply dark mode to document body when it changes
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add('dark');
+    } else {
+      document.body.classList.remove('dark');
+    }
+    
+    // Regenerate colors when mode changes if schedule exists
+    if (schedule.length > 0) {
+      const filteredVolunteers = volunteers.filter(v => v.trim() !== '');
+      setColors(generateColors(filteredVolunteers));
+    }
+  }, [darkMode]);
   
   // Handle volunteer input change
   const handleVolunteerChange = (index, value) => {
@@ -26,7 +53,28 @@ const ScheduleBuilder = () => {
   
   // Handle time range changes
   const handleTimeChange = (field, value) => {
-    setTimeRange(prev => ({ ...prev, [field]: value }));
+    if (field === 'interval') {
+      if (value === 'custom') {
+        setTimeRange(prev => ({ 
+          ...prev, 
+          isCustomInterval: true 
+        }));
+      } else {
+        setTimeRange(prev => ({ 
+          ...prev, 
+          interval: parseInt(value), 
+          isCustomInterval: false 
+        }));
+      }
+    } else if (field === 'customInterval') {
+      setTimeRange(prev => ({ 
+        ...prev, 
+        customInterval: parseInt(value),
+        interval: parseInt(value)
+      }));
+    } else {
+      setTimeRange(prev => ({ ...prev, [field]: value }));
+    }
   };
   
   // Add a new volunteer field
@@ -57,7 +105,20 @@ const ScheduleBuilder = () => {
   // Generate colors for volunteers
   const generateColors = (volunteers) => {
     const colorMap = {};
-    const colorPalette = [
+    
+    // Different color palettes for light and dark mode
+    const colorPalette = darkMode ? [
+      { bg: '#1a365d', text: '#90cdf4' }, // Dark Blue
+      { bg: '#5f370e', text: '#fbd38d' }, // Dark Orange
+      { bg: '#1e4620', text: '#9ae6b4' }, // Dark Green
+      { bg: '#521b41', text: '#fbb6ce' }, // Dark Pink
+      { bg: '#44337a', text: '#d6bcfa' }, // Dark Purple
+      { bg: '#154e4e', text: '#81e6d9' }, // Dark Teal
+      { bg: '#652b19', text: '#fbd38d' }, // Dark Amber
+      { bg: '#2d3748', text: '#e2e8f0' }, // Dark Gray
+      { bg: '#22543d', text: '#9ae6b4' }, // Dark Emerald
+      { bg: '#702459', text: '#fbb6ce' }  // Dark Rose
+    ] : [
       { bg: '#e9f2fc', text: '#1a56db' }, // Blue
       { bg: '#faebd7', text: '#c2410c' }, // Orange
       { bg: '#edf7ed', text: '#15803d' }, // Green
@@ -120,6 +181,16 @@ const ScheduleBuilder = () => {
     return slots;
   };
   
+  // Fisher-Yates shuffle algorithm to randomize array
+  const shuffleArray = (array) => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+  
   // Check if a volunteer is already scheduled in the current or previous slot
   const isVolunteerAvailable = (volunteer, slotIndex, assignedVolunteers) => {
     if (slotIndex > 0) {
@@ -132,7 +203,8 @@ const ScheduleBuilder = () => {
   };
   
   // Create schedule with even workload and maximized variety
-  const createSchedule = (volunteers, slots) => {
+  const createSchedule = (volunteers, slots, randomize = false) => {
+    // Apply randomness for shuffling if requested
     const filteredVolunteers = volunteers.filter(v => v.trim() !== '');
     
     // Track pairings for variety
@@ -156,7 +228,7 @@ const ScheduleBuilder = () => {
     // First pass: Assign volunteers with availability constraint
     slots.forEach((slot, slotIndex) => {
       // Find available volunteers
-      const availableVolunteers = filteredVolunteers.filter(v => 
+      let availableVolunteers = filteredVolunteers.filter(v => 
         isVolunteerAvailable(v, slotIndex, assignedVolunteers)
       );
       
@@ -165,8 +237,16 @@ const ScheduleBuilder = () => {
         return;
       }
       
-      // Sort by shift count (ascending) to prioritize even workload
-      availableVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
+      // Introduce randomness when shuffling
+      if (randomize) {
+        // Semi-random approach - we still want some balance in shift counts
+        availableVolunteers = shuffleArray(availableVolunteers);
+        // But we'll still sort by shift count to maintain some fairness
+        availableVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
+      } else {
+        // Original sorting by shift count
+        availableVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
+      }
       
       // Select first volunteer (least shifts)
       const firstVolunteer = availableVolunteers[0];
@@ -175,18 +255,27 @@ const ScheduleBuilder = () => {
       let bestPartner = null;
       let lowestPairCount = Infinity;
       
-      for (let i = 1; i < availableVolunteers.length; i++) {
-        const partner = availableVolunteers[i];
-        // Skip if it's the same volunteer
-        if (partner === firstVolunteer) continue;
-        
-        const pairKey = `${firstVolunteer}-${partner}`;
-        const reversePairKey = `${partner}-${firstVolunteer}`;
-        const pairCount = (pairCounts[pairKey] || 0) + (pairCounts[reversePairKey] || 0);
-        
-        if (pairCount < lowestPairCount) {
-          lowestPairCount = pairCount;
-          bestPartner = partner;
+      // When randomizing, occasionally pick a random partner instead of optimizing for variety
+      if (randomize && Math.random() < 0.4) {
+        const possiblePartners = availableVolunteers.filter(v => v !== firstVolunteer);
+        if (possiblePartners.length > 0) {
+          bestPartner = possiblePartners[Math.floor(Math.random() * possiblePartners.length)];
+        }
+      } else {
+        // Regular partner selection based on pairings
+        for (let i = 1; i < availableVolunteers.length; i++) {
+          const partner = availableVolunteers[i];
+          // Skip if it's the same volunteer
+          if (partner === firstVolunteer) continue;
+          
+          const pairKey = `${firstVolunteer}-${partner}`;
+          const reversePairKey = `${partner}-${firstVolunteer}`;
+          const pairCount = (pairCounts[pairKey] || 0) + (pairCounts[reversePairKey] || 0);
+          
+          if (pairCount < lowestPairCount) {
+            lowestPairCount = pairCount;
+            bestPartner = partner;
+          }
         }
       }
       
@@ -203,7 +292,15 @@ const ScheduleBuilder = () => {
     // Second pass: Fill in any slots that couldn't be filled with availability constraint
     slots.forEach((slot, slotIndex) => {
       if (assignedVolunteers[slotIndex].length < 2) {
-        const sortedVolunteers = [...filteredVolunteers].sort((a, b) => shiftCounts[a] - shiftCounts[b]);
+        let sortedVolunteers = [...filteredVolunteers];
+        
+        // When randomizing, occasionally shuffle the volunteers first
+        if (randomize) {
+          sortedVolunteers = shuffleArray(sortedVolunteers);
+        }
+        
+        // But still sort by shift count to maintain some fairness
+        sortedVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
         
         // Fill first position if needed
         if (assignedVolunteers[slotIndex].length === 0 && sortedVolunteers.length > 0) {
@@ -240,6 +337,38 @@ const ScheduleBuilder = () => {
     return { assignments: assignedVolunteers, shiftCounts };
   };
   
+  // Shuffle the schedule while maintaining rules
+  const shuffleSchedule = () => {
+    if (!schedule.length) return;
+    
+    setIsLoading(true);
+    
+    setTimeout(() => {
+      const filteredVolunteers = volunteers.filter(v => v.trim() !== '');
+      
+      // Generate time slots
+      const slots = generateTimeSlots(
+        timeRange.startTime, 
+        timeRange.endTime, 
+        timeRange.isCustomInterval ? timeRange.customInterval : parseInt(timeRange.interval)
+      );
+      
+      // Create shuffled schedule with randomization flag set to true
+      const { assignments, shiftCounts } = createSchedule(filteredVolunteers, slots, true);
+      
+      // Create final schedule
+      const newSchedule = slots.map((slot, index) => ({
+        ...slot,
+        volunteers: assignments[index],
+        shiftCounts
+      }));
+      
+      setSchedule(newSchedule);
+      setConflicts([]);
+      setIsLoading(false);
+    }, 300);
+  };
+  
   // Generate the schedule
   const generateSchedule = () => {
     const filteredVolunteers = volunteers.filter(v => v.trim() !== '');
@@ -258,15 +387,20 @@ const ScheduleBuilder = () => {
       const colorMap = generateColors(filteredVolunteers);
       setColors(colorMap);
       
+      // Get interval value - either the selected preset or custom value
+      const intervalValue = timeRange.isCustomInterval ? 
+        timeRange.customInterval : 
+        parseInt(timeRange.interval);
+      
       // Generate time slots
       const slots = generateTimeSlots(
         timeRange.startTime, 
         timeRange.endTime, 
-        parseInt(timeRange.interval)
+        intervalValue
       );
       
-      // Create schedule
-      const { assignments, shiftCounts } = createSchedule(filteredVolunteers, slots);
+      // Create schedule with randomization flag set to false (default behavior)
+      const { assignments, shiftCounts } = createSchedule(filteredVolunteers, slots, false);
       
       // Create final schedule
       const newSchedule = slots.map((slot, index) => ({
@@ -351,12 +485,12 @@ const ScheduleBuilder = () => {
   // Enter screenshot mode
   const enterScreenshotMode = () => {
     if (conflicts.length > 0) {
-      alert('Please resolve all scheduling conflicts before creating a screenshot.');
+      alert('Please resolve all scheduling conflicts before creating a schedule image.');
       return;
     }
     
     if (duplicateError) {
-      alert('Please resolve the duplicate volunteer assignment before creating a screenshot.');
+      alert('Please resolve the duplicate volunteer assignment before creating a schedule image.');
       return;
     }
     
@@ -369,6 +503,51 @@ const ScheduleBuilder = () => {
     setShowSaveInstructions(true);
   };
   
+  // Download schedule as image
+  const downloadScheduleImage = () => {
+    if (!scheduleRef.current) return;
+    
+    // Show a loading indicator or message
+    const downloadBtn = document.querySelector('.download-btn');
+    if (downloadBtn) {
+      const originalContent = downloadBtn.innerHTML;
+      downloadBtn.innerHTML = '<span>Downloading...</span>';
+      
+      html2canvas(scheduleRef.current, {
+        backgroundColor: darkMode ? '#1a202c' : '#ffffff',
+        scale: 2, // Higher scale for better quality
+        logging: false,
+        useCORS: true
+      }).then(canvas => {
+        // Convert canvas to PNG image
+        const image = canvas.toDataURL('image/png');
+        
+        // Create download link
+        const downloadLink = document.createElement('a');
+        
+        // Set filename with date
+        const dateString = timeRange.date.replace(/-/g, '');
+        const locationText = locationName ? `${locationName.replace(/\s+/g, '_')}` : 'Volunteer';
+        const filename = `${locationText}_Schedule_${dateString}.png`;
+        
+        downloadLink.download = filename;
+        downloadLink.href = image;
+        downloadLink.click();
+        
+        // Restore original button content
+        if (downloadBtn) {
+          downloadBtn.innerHTML = originalContent;
+        }
+      }).catch(err => {
+        console.error('Error generating screenshot:', err);
+        alert('Could not create image. Please try again or use screenshot instructions.');
+        if (downloadBtn) {
+          downloadBtn.innerHTML = originalContent;
+        }
+      });
+    }
+  };
+  
   // The compact screenshot view component optimized for mobile
   const ScreenshotView = () => {
     if (!schedule.length) return null;
@@ -376,67 +555,124 @@ const ScheduleBuilder = () => {
     const dateStr = formatDate(timeRange.date);
     const timeStr = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
     const shiftCounts = schedule[0]?.shiftCounts || {};
+    const displayTitle = locationName ? `${locationName} Schedule` : `Schedule`;
     
     return (
-      <div className="fixed inset-0 bg-white z-50 overflow-auto">
+      <div className={`fixed inset-0 ${darkMode ? 'bg-gray-900' : 'bg-white'} z-50 overflow-auto`}>
         <div className="relative max-w-md mx-auto">
           {/* Controls - positioned outside the screenshot area */}
           <div className="absolute top-1 right-1 flex space-x-1">
             <button 
-              onClick={showSaveHelp}
-              className="p-1 rounded-full text-gray-500 hover:bg-gray-100"
+              onClick={toggleDarkMode}
+              className={`p-1 rounded-full ${darkMode ? 'text-yellow-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+            >
+              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            <button 
+              onClick={downloadScheduleImage}
+              className={`p-1 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'} download-btn`}
             >
               <Download size={20} />
             </button>
             <button 
+              onClick={showSaveHelp}
+              className={`p-1 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+            >
+              <Info size={20} />
+            </button>
+            <button 
               onClick={() => setScreenshotMode(false)}
-              className="p-1 rounded-full text-gray-500 hover:bg-gray-100"
+              className={`p-1 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
             >
               <X size={20} />
             </button>
           </div>
           
           {/* Screenshot area - this is the part to be captured */}
-          <div className="pt-8 pb-2 px-3">
+          <div className="pt-8 pb-2 px-3" ref={scheduleRef}>
             {/* Header */}
             <div className="text-center mb-2">
-              <h1 className="text-lg font-bold text-gray-800">SMPW Schedule</h1>
-              <p className="text-xs text-gray-600">{dateStr} • {timeStr}</p>
+              <h1 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{displayTitle}</h1>
+              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{dateStr} • {timeStr}</p>
             </div>
             
-            {/* Compact Schedule Table */}
-            <table className="w-full border-collapse border border-gray-300 text-xs mb-2">
+            {/* Compact Schedule Table - Using pure HTML table for better rendering */}
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse',
+              borderSpacing: 0,
+              fontSize: '12px',
+              marginBottom: '8px',
+              border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0'
+            }}>
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="border border-gray-300 py-1 px-1 text-left font-medium">
+                <tr style={{ 
+                  background: darkMode ? '#2d3748' : '#f7fafc'
+                }}>
+                  <th style={{ 
+                    border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                    padding: '4px 4px',
+                    textAlign: 'left',
+                    fontWeight: '500',
+                    color: darkMode ? '#e2e8f0' : '#1a202c'
+                  }}>
                     Time
                   </th>
-                  <th className="border border-gray-300 py-1 px-1 text-center font-medium">
+                  <th style={{ 
+                    border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                    padding: '4px 4px',
+                    textAlign: 'center',
+                    fontWeight: '500',
+                    color: darkMode ? '#e2e8f0' : '#1a202c'
+                  }}>
                     Volunteers
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {schedule.map((slot, index) => (
-                  <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="border border-gray-300 py-1 px-1 whitespace-nowrap font-medium">
+                  <tr key={index} style={{ 
+                    background: index % 2 === 0 
+                      ? (darkMode ? '#1a202c' : '#ffffff') 
+                      : (darkMode ? '#2d3748' : '#f7fafc')
+                  }}>
+                    <td style={{ 
+                      border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                      padding: '4px 4px',
+                      whiteSpace: 'nowrap',
+                      fontWeight: '500',
+                      color: darkMode ? '#e2e8f0' : '#1a202c'
+                    }}>
                       {slot.compactDisplay}
                     </td>
-                    <td className="border border-gray-300 py-1 px-1">
-                      <div className="flex justify-center items-center gap-1">
+                    <td style={{ 
+                      border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                      padding: '4px 2px',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
                         {slot.volunteers.map((volunteer, vIndex) => (
-                          <span 
+                          <div 
                             key={vIndex}
-                            className="inline-block px-1 py-0.5 rounded-sm text-center"
                             style={{ 
+                              display: 'table',
+                              width: '45%',
+                              height: '20px',
                               backgroundColor: colors[volunteer]?.bg || 'transparent',
                               color: colors[volunteer]?.text || 'inherit',
-                              width: '45%',
-                              fontSize: '0.7rem'
+                              borderRadius: '2px',
+                              fontSize: '11px',
+                              overflow: 'hidden'
                             }}
                           >
-                            {volunteer}
-                          </span>
+                            <div style={{
+                              display: 'table-cell',
+                              verticalAlign: 'middle',
+                              textAlign: 'center',
+                            }}>
+                              {volunteer}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </td>
@@ -445,27 +681,32 @@ const ScheduleBuilder = () => {
               </tbody>
             </table>
             
-            {/* Legend - If there's space */}
-            <div className="text-xs mb-1">
-              <div className="flex flex-wrap gap-1">
+            {/* Legend using table-cell for vertical alignment */}
+            <div style={{ fontSize: '11px', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                 {Object.keys(shiftCounts).map((volunteer, index) => (
                   <div 
                     key={index}
-                    className="inline-flex items-center rounded-sm px-1 py-0.5"
                     style={{ 
+                      display: 'table',
+                      height: '18px',
                       backgroundColor: colors[volunteer]?.bg || 'transparent',
                       color: colors[volunteer]?.text || 'inherit',
-                      fontSize: '0.7rem'
+                      borderRadius: '2px',
+                      padding: '0 4px'
                     }}
                   >
-                    {volunteer}:{shiftCounts[volunteer]}
+                    <div style={{
+                      display: 'table-cell',
+                      verticalAlign: 'middle',
+                      textAlign: 'center',
+                      fontSize: '11px'
+                    }}>
+                      {volunteer}:{shiftCounts[volunteer]}
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-            
-            <div className="text-center text-gray-500 text-xs mt-1">
-              SMPW Program
             </div>
           </div>
         </div>
@@ -473,14 +714,14 @@ const ScheduleBuilder = () => {
         {/* Save Instructions Modal */}
         {showSaveInstructions && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-4 rounded-lg shadow-lg max-w-sm mx-auto">
+            <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-lg shadow-lg max-w-sm mx-auto`}>
               <h3 className="text-lg font-bold mb-2 flex items-center">
                 <Smartphone className="mr-2" size={20} />
                 Save as Image
               </h3>
               <div className="mb-4">
                 <p className="mb-2 text-sm">To save this schedule as an image:</p>
-                <ol className="list-decimal pl-5 text-sm space-y-1">
+                <ol className={`list-decimal pl-5 text-sm space-y-1 ${darkMode ? 'text-gray-300' : ''}`}>
                   <li>Take a screenshot on your phone</li>
                   <li>For iPhone: Press power button + volume up</li>
                   <li>For Android: Press power button + volume down</li>
@@ -501,13 +742,22 @@ const ScheduleBuilder = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100'}`}>
       {/* Header */}
-      <header className="bg-gradient-to-r from-indigo-600 to-purple-600 py-6 px-4 text-white">
+      <header className={`bg-gradient-to-r ${darkMode ? 'from-indigo-900 to-purple-900' : 'from-indigo-600 to-purple-600'} py-6 px-4 text-white relative`}>
         <div className="max-w-6xl mx-auto">
+          <div className="absolute right-4 top-6">
+            <button 
+              onClick={toggleDarkMode}
+              className="p-2 rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 text-white"
+              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+          </div>
           <h1 className="text-2xl md:text-3xl font-bold text-center flex items-center justify-center">
             <Calendar className="mr-3" />
-            SMPW Volunteer Schedule
+            Volunteer Schedule Builder
           </h1>
         </div>
       </header>
@@ -517,32 +767,47 @@ const ScheduleBuilder = () => {
       <main className="py-6 px-4 max-w-6xl mx-auto">
         <div className="grid md:grid-cols-2 gap-6">
           {/* Setup Panel */}
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-              <Users className="mr-2 text-indigo-600" size={20} />
+          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
+            <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-4 flex items-center`}>
+              <Users className={`mr-2 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} size={20} />
               Setup
             </h2>
             
             <div className="space-y-6">
+              {/* Location Name */}
+              <div>
+                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                  <Building className="inline-block mr-1 mb-0.5" size={16} />
+                  Location Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={locationName}
+                  onChange={(e) => setLocationName(e.target.value)}
+                  placeholder="Enter location name"
+                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
+                />
+              </div>
+              
               {/* Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                   <Calendar className="inline-block mr-1 mb-0.5" size={16} />
-                  Schedule Date
+                  Shift Date
                 </label>
                 <input
                   type="date"
                   value={timeRange.date}
                   onChange={(e) => handleTimeChange('date', e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
                 />
               </div>
               
               {/* Time Range */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                   <Clock className="inline-block mr-1 mb-0.5" size={16} />
-                  Time Range
+                  Shift Time
                 </label>
                 <div className="flex items-center space-x-2">
                   <div className="w-full">
@@ -550,16 +815,16 @@ const ScheduleBuilder = () => {
                       type="time"
                       value={timeRange.startTime}
                       onChange={(e) => handleTimeChange('startTime', e.target.value)}
-                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
                     />
                   </div>
-                  <span className="text-gray-500">to</span>
+                  <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>to</span>
                   <div className="w-full">
                     <input
                       type="time"
                       value={timeRange.endTime}
                       onChange={(e) => handleTimeChange('endTime', e.target.value)}
-                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
                     />
                   </div>
                 </div>
@@ -567,32 +832,47 @@ const ScheduleBuilder = () => {
               
               {/* Shift Interval */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                   <Clock className="inline-block mr-1 mb-0.5" size={16} />
-                  Shift Interval
+                  How long should each shift be?
                 </label>
                 <div className="relative">
                   <select
-                    value={timeRange.interval}
+                    value={timeRange.isCustomInterval ? 'custom' : timeRange.interval}
                     onChange={(e) => handleTimeChange('interval', e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
                   >
                     <option value="20">20 minutes</option>
+                    <option value="25">25 minutes</option>
                     <option value="30">30 minutes</option>
-                    <option value="40">40 minutes</option>
-                    <option value="45">45 minutes</option>
-                    <option value="60">60 minutes</option>
-                    <option value="90">90 minutes</option>
+                    <option value="custom">Custom</option>
                   </select>
                   <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                    <ChevronDown size={16} className="text-gray-500" />
+                    <ChevronDown size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
                   </div>
                 </div>
+                
+                {/* Custom interval input */}
+                {timeRange.isCustomInterval && (
+                  <div className="mt-2">
+                    <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                      Custom shift length (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      min="5"
+                      max="120"
+                      value={timeRange.customInterval}
+                      onChange={(e) => handleTimeChange('customInterval', e.target.value)}
+                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
+                    />
+                  </div>
+                )}
               </div>
               
               {/* Volunteers */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                   <Users className="inline-block mr-1 mb-0.5" size={16} />
                   Volunteers
                 </label>
@@ -604,13 +884,17 @@ const ScheduleBuilder = () => {
                       value={volunteer}
                       onChange={(e) => handleVolunteerChange(index, e.target.value)}
                       placeholder={`Volunteer ${index + 1}`}
-                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
                     />
                   ))}
                 </div>
                 <button
                   onClick={addVolunteer}
-                  className="mt-2 inline-flex items-center px-3 py-1 text-sm font-medium text-indigo-600 bg-indigo-100 rounded hover:bg-indigo-200"
+                  className={`mt-2 inline-flex items-center px-3 py-1 text-sm font-medium ${
+                    darkMode 
+                      ? 'text-indigo-300 bg-indigo-900 hover:bg-indigo-800' 
+                      : 'text-indigo-600 bg-indigo-100 hover:bg-indigo-200'
+                  } rounded`}
                 >
                   <Plus size={16} className="mr-1" />
                   Add Volunteer
@@ -637,20 +921,25 @@ const ScheduleBuilder = () => {
           </div>
           
           {/* Schedule Panel */}
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-                <Calendar className="mr-2 text-indigo-600" size={20} />
+              <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} flex items-center`}>
+                <Calendar className={`mr-2 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} size={20} />
                 Schedule
               </h2>
               
               {schedule.length > 0 && (
                 <button
-                  onClick={enterScreenshotMode}
-                  className="inline-flex items-center px-3 py-1 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700"
+                  onClick={shuffleSchedule}
+                  disabled={isLoading}
+                  className={`inline-flex items-center px-3 py-1 text-sm font-medium ${
+                    darkMode 
+                      ? 'text-purple-300 bg-purple-900 hover:bg-purple-800' 
+                      : 'text-purple-700 bg-purple-100 hover:bg-purple-200'
+                  } rounded mr-2`}
                 >
-                  <Camera size={16} className="mr-1" />
-                  Mobile View
+                  <Shuffle size={16} className="mr-1" />
+                  Shuffle
                 </button>
               )}
             </div>
@@ -658,7 +947,7 @@ const ScheduleBuilder = () => {
             {schedule.length > 0 ? (
               <>
                 {conflicts.length > 0 && (
-                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-yellow-800 text-sm flex items-start">
+                  <div className={`mb-4 p-3 ${darkMode ? 'bg-yellow-900 border-yellow-800 text-yellow-200' : 'bg-yellow-50 border-yellow-200 text-yellow-800'} border rounded-md text-sm flex items-start`}>
                     <AlertTriangle size={16} className="mr-2 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="font-medium">Warning: Schedule has conflicts</p>
@@ -669,13 +958,13 @@ const ScheduleBuilder = () => {
                 
                 {/* Volunteer Summary */}
                 {schedule.length > 0 && (
-                  <div className="mb-4 p-3 bg-gray-50 rounded-md">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Volunteer Shifts</h3>
+                  <div className={`mb-4 p-3 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-md`}>
+                    <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'} mb-2`}>Volunteer Shifts</h3>
                     <div className="flex flex-wrap gap-2">
                       {Object.entries(schedule[0].shiftCounts || {}).map(([volunteer, count], index) => (
                         <div 
                           key={index}
-                          className="px-2 py-1 rounded text-sm"
+                          className="px-2 py-1 rounded text-sm inline-flex items-center justify-center"
                           style={{ 
                             backgroundColor: colors[volunteer]?.bg || 'transparent',
                             color: colors[volunteer]?.text || 'inherit',
@@ -689,25 +978,25 @@ const ScheduleBuilder = () => {
                 )}
                 
                 {/* Schedule Table */}
-                <div className="overflow-auto max-h-96 border border-gray-200 rounded-md">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50 sticky top-0">
+                <div className={`overflow-auto max-h-96 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} rounded-md`}>
+                  <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                    <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} sticky top-0`}>
                       <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className={`px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
                           Time
                         </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className={`px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
                           Volunteer 1
                         </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className={`px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
                           Volunteer 2
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className={`${darkMode ? 'bg-gray-800' : 'bg-white'} divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
                       {schedule.map((slot, slotIndex) => (
-                        <tr key={slotIndex} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <tr key={slotIndex} className={`${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                          <td className={`px-3 py-2 whitespace-nowrap text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
                             {slot.display12}
                           </td>
                           {[0, 1].map(volIndex => {
@@ -720,31 +1009,31 @@ const ScheduleBuilder = () => {
                             
                             return (
                               <td key={volIndex} className="px-3 py-2 whitespace-nowrap text-sm">
-                                <div className={`rounded ${hasConflict ? 'bg-red-50' : ''} ${hasDuplicateError ? 'border border-red-300' : ''}`}>
+                                <div className={`rounded ${hasConflict ? (darkMode ? 'bg-red-900' : 'bg-red-50') : ''} ${hasDuplicateError ? (darkMode ? 'border border-red-700' : 'border border-red-300') : ''}`}>
                                   <select
                                     value={volunteer || ''}
                                     onChange={(e) => updateScheduleVolunteer(slotIndex, volIndex, e.target.value)}
-                                    className="w-full py-1 px-2 rounded border-0 focus:ring-0"
+                                    className={`w-full py-1 px-2 rounded border-0 focus:ring-0 ${darkMode ? 'bg-gray-700 text-white' : ''}`}
                                     style={{
-                                      backgroundColor: volunteer ? colors[volunteer]?.bg : 'transparent',
+                                      backgroundColor: volunteer ? colors[volunteer]?.bg : (darkMode ? '#1F2937' : 'transparent'),
                                       color: volunteer ? colors[volunteer]?.text : 'inherit'
                                     }}
                                   >
-                                    <option value="">Select volunteer</option>
+                                    <option value="" className={darkMode ? 'bg-gray-700' : ''}>Select volunteer</option>
                                     {volunteers.filter(v => v.trim() !== '').map((v, i) => (
-                                      <option key={i} value={v}>{v}</option>
+                                      <option key={i} value={v} className={darkMode ? 'bg-gray-700' : ''}>{v}</option>
                                     ))}
                                   </select>
                                 </div>
                                 
                                 {hasConflict && (
-                                  <div className="text-xs text-red-600 mt-1">
+                                  <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
                                     Back-to-back shift
                                   </div>
                                 )}
                                 
                                 {hasDuplicateError && volIndex === 0 && (
-                                  <div className="text-xs text-red-600 mt-1">
+                                  <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
                                     {duplicateError.message}
                                   </div>
                                 )}
@@ -756,9 +1045,20 @@ const ScheduleBuilder = () => {
                     </tbody>
                   </table>
                 </div>
+                
+                {/* Finished Button - moved below the schedule */}
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={enterScreenshotMode}
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700"
+                  >
+                    <Camera size={16} className="mr-2" />
+                    Finished
+                  </button>
+                </div>
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+              <div className={`flex flex-col items-center justify-center h-64 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 <Calendar size={48} className="mb-4 opacity-30" />
                 <p>No schedule generated yet</p>
                 <p className="text-sm">Fill in the setup form and click Generate</p>
@@ -768,8 +1068,8 @@ const ScheduleBuilder = () => {
         </div>
       </main>
       
-      <footer className="mt-8 py-4 border-t border-gray-200 text-center text-gray-500 text-xs">
-        SMPW Volunteer Schedule Builder | Created for Special Metropolitan Public Witnessing Program
+      <footer className={`mt-8 py-4 border-t ${darkMode ? 'border-gray-800 text-gray-400' : 'border-gray-200 text-gray-500'} text-center text-xs`}>
+        Volunteer Schedule Builder
       </footer>
     </div>
   );
