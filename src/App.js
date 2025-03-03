@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Clock, Users, Calendar, ChevronDown, Plus, AlertTriangle, Camera, X, Smartphone, Download, Info, Shuffle, Building, Sun, Moon } from 'lucide-react';
+import { Clock, Users, Calendar, ChevronDown, Plus, AlertTriangle, Camera, X, Smartphone, Download, Info, Shuffle, Building, Sun, Moon, Copy, Check, AlertCircle } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 const ScheduleBuilder = () => {
@@ -21,6 +21,8 @@ const ScheduleBuilder = () => {
   const [screenshotMode, setScreenshotMode] = useState(false);
   const [showSaveInstructions, setShowSaveInstructions] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [copyStatus, setCopyStatus] = useState(null); // 'copying', 'success', 'error'
+  const [showCopyFallback, setShowCopyFallback] = useState(false);
   
   const scheduleRef = useRef(null);
   
@@ -500,11 +502,83 @@ const ScheduleBuilder = () => {
     
     setScreenshotMode(true);
     setShowSaveInstructions(false);
+    setShowCopyFallback(false);
+    setCopyStatus(null);
   };
   
   // Show save instructions modal
   const showSaveHelp = () => {
     setShowSaveInstructions(true);
+    setShowCopyFallback(false);
+  };
+  
+  // Copy schedule to clipboard
+  const copyScheduleToClipboard = async () => {
+    if (!scheduleRef.current) return;
+    
+    setCopyStatus('copying');
+    
+    try {
+      const canvas = await html2canvas(scheduleRef.current, {
+        backgroundColor: darkMode ? '#1a202c' : '#ffffff',
+        scale: 2,
+        logging: false,
+        useCORS: true,
+        letterRendering: true,
+        allowTaint: true,
+        foreignObjectRendering: false
+      });
+      
+      // Try clipboard API
+      if (navigator.clipboard && navigator.clipboard.write) {
+        // Convert canvas to blob
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        
+        try {
+          // Create a ClipboardItem and write to clipboard
+          const item = new ClipboardItem({ 'image/png': blob });
+          await navigator.clipboard.write([item]);
+          
+          setCopyStatus('success');
+          setTimeout(() => setCopyStatus(null), 2000);
+          return;
+        } catch (clipError) {
+          console.log('Advanced clipboard API failed, trying fallback:', clipError);
+          // Continue to fallback methods
+        }
+      } 
+      
+      // Fallback for browsers without ClipboardItem support
+      try {
+        // For many mobile browsers, we can try sharing the image
+        if (navigator.share) {
+          const imageUrl = canvas.toDataURL('image/png');
+          const blob = await fetch(imageUrl).then(r => r.blob());
+          const file = new File([blob], 'schedule.png', { type: 'image/png' });
+          
+          await navigator.share({
+            files: [file],
+            title: 'Volunteer Schedule',
+            text: 'Here is the volunteer schedule'
+          });
+          
+          setCopyStatus('success');
+          setTimeout(() => setCopyStatus(null), 2000);
+          return;
+        }
+      } catch (shareError) {
+        console.log('Share API failed:', shareError);
+      }
+      
+      // If all else fails, show manual instructions
+      setCopyStatus('error');
+      setShowCopyFallback(true);
+      
+    } catch (err) {
+      console.error('Error creating or copying image:', err);
+      setCopyStatus('error');
+      setShowCopyFallback(true);
+    }
   };
   
   // Download schedule as image
@@ -731,9 +805,55 @@ const ScheduleBuilder = () => {
               </div>
             </div>
           </div>
+          
+          {/* Copy button with status indication */}
+          <div className="flex justify-center mt-4 mb-2">
+            <button
+              onClick={copyScheduleToClipboard}
+              disabled={copyStatus === 'copying'}
+              className={`flex items-center justify-center py-2 px-5 rounded-lg font-medium copy-btn ${
+                copyStatus === 'success' 
+                  ? (darkMode ? 'bg-green-800 text-green-200' : 'bg-green-600 text-white')
+                  : copyStatus === 'error'
+                  ? (darkMode ? 'bg-red-800 text-red-200' : 'bg-red-600 text-white')
+                  : (darkMode ? 'bg-indigo-800 text-white' : 'bg-indigo-600 text-white')
+              } transition-colors`}
+            >
+              {copyStatus === 'copying' ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Copying...
+                </>
+              ) : copyStatus === 'success' ? (
+                <>
+                  <Check className="mr-2" size={20} />
+                  Copied!
+                </>
+              ) : copyStatus === 'error' ? (
+                <>
+                  <AlertCircle className="mr-2" size={20} />
+                  Copy Failed
+                </>
+              ) : (
+                <>
+                  <Copy className="mr-2" size={20} />
+                  Copy to Clipboard
+                </>
+              )}
+            </button>
+          </div>
+          
+          <div className="text-center mb-4">
+            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              Copy and paste this schedule into text messages or emails
+            </p>
+          </div>
         </div>
         
-        {/* Save Instructions Modal with improved mobile formatting */}
+        {/* Save Instructions Modal */}
         {showSaveInstructions && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-lg shadow-lg max-w-sm mx-auto w-full`}>
@@ -752,6 +872,32 @@ const ScheduleBuilder = () => {
               </div>
               <button 
                 onClick={() => setShowSaveInstructions(false)}
+                className="w-full py-2 bg-indigo-600 text-white rounded-md"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* Copy Fallback Instructions */}
+        {showCopyFallback && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-lg shadow-lg max-w-sm mx-auto w-full`}>
+              <h3 className="text-lg font-bold mb-2 flex items-center">
+                <Copy className="mr-2" size={20} />
+                Copy Schedule
+              </h3>
+              <div className="mb-4">
+                <p className="mb-2 text-sm">Your device doesn't support direct clipboard copying of images. You can:</p>
+                <ol className={`list-decimal pl-5 text-sm space-y-1 ${darkMode ? 'text-gray-300' : ''}`}>
+                  <li>Take a screenshot of this screen</li>
+                  <li>Download the image using the download button</li>
+                  <li>Use the screenshot to share via messages</li>
+                </ol>
+              </div>
+              <button 
+                onClick={() => setShowCopyFallback(false)}
                 className="w-full py-2 bg-indigo-600 text-white rounded-md"
               >
                 Got it
