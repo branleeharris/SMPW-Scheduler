@@ -91,10 +91,14 @@ const ScheduleBuilder = () => {
     return `${displayHours}:${minutes.toString().padStart(2, '0')}${period}`;
   };
   
-  // Format date in a readable way
+  // Format date in a readable way - Fixed to prevent date shifting
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
+    // Split the date string into components and create date using local time
+    // (this prevents timezone issues that cause the date to shift)
+    const [year, month, day] = dateStr.split('-').map(Number);
+    // Note: month is 0-indexed in JavaScript Date constructor
+    const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('en-US', { 
       weekday: 'short', 
       month: 'short', 
@@ -580,36 +584,40 @@ const ScheduleBuilder = () => {
     return (
       <div className={`fixed inset-0 ${darkMode ? 'bg-gray-900' : 'bg-white'} z-50 overflow-auto`}>
         <div className="relative max-w-md mx-auto">
-          {/* Controls - positioned outside the screenshot area */}
-          <div className="absolute top-1 right-1 flex space-x-1">
+          {/* Controls - with better spacing for mobile */}
+          <div className="absolute top-2 right-2 flex space-x-2">
             <button 
               onClick={toggleDarkMode}
-              className={`p-1 rounded-full ${darkMode ? 'text-yellow-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+              className={`p-2 rounded-full ${darkMode ? 'text-yellow-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
             >
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             <button 
               onClick={downloadScheduleImage}
-              className={`p-1 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'} download-btn`}
+              className={`p-2 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'} download-btn`}
+              aria-label="Download schedule"
             >
               <Download size={20} />
             </button>
             <button 
               onClick={showSaveHelp}
-              className={`p-1 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+              className={`p-2 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+              aria-label="Help with saving"
             >
               <Info size={20} />
             </button>
             <button 
               onClick={() => setScreenshotMode(false)}
-              className={`p-1 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+              className={`p-2 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+              aria-label="Close screenshot mode"
             >
               <X size={20} />
             </button>
           </div>
           
-          {/* Screenshot area - this is the part to be captured */}
-          <div className="pt-8 pb-2 px-3" ref={scheduleRef}>
+          {/* Increased top padding to prevent controls overlap */}
+          <div className="pt-12 pb-2 px-3" ref={scheduleRef}>
             {/* Header */}
             <div className="text-center mb-2">
               <h1 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{displayTitle}</h1>
@@ -725,10 +733,10 @@ const ScheduleBuilder = () => {
           </div>
         </div>
         
-        {/* Save Instructions Modal */}
+        {/* Save Instructions Modal with improved mobile formatting */}
         {showSaveInstructions && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-lg shadow-lg max-w-sm mx-auto`}>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-lg shadow-lg max-w-sm mx-auto w-full`}>
               <h3 className="text-lg font-bold mb-2 flex items-center">
                 <Smartphone className="mr-2" size={20} />
                 Save as Image
@@ -757,37 +765,42 @@ const ScheduleBuilder = () => {
   
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100'}`}>
-      {/* Header */}
-      <header className={`bg-gradient-to-r ${darkMode ? 'from-indigo-900 to-purple-900' : 'from-indigo-600 to-purple-600'} py-6 px-4 text-white relative`}>
+      {/* Header with mobile improvements */}
+      <header className={`bg-gradient-to-r ${darkMode ? 'from-indigo-900 to-purple-900' : 'from-indigo-600 to-purple-600'} py-4 px-4 text-white`}>
         <div className="max-w-6xl mx-auto">
-          <div className="absolute right-4 top-6">
-            <button 
-              onClick={toggleDarkMode}
-              className="p-2 rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 text-white"
-              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-            >
-              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
+          <div className="flex flex-col sm:flex-row items-center justify-between">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-0 flex items-center">
+              <Calendar className="mr-2 hidden sm:inline" />
+              <span>Volunteer Schedule Builder</span>
+            </h1>
+            
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={toggleDarkMode}
+                className="p-2 rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 text-white flex items-center"
+                aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+                <span className="ml-1 text-sm hidden sm:inline">{darkMode ? "Light" : "Dark"}</span>
+              </button>
+            </div>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-center flex items-center justify-center">
-            <Calendar className="mr-3" />
-            Volunteer Schedule Builder
-          </h1>
         </div>
       </header>
       
       {screenshotMode && <ScreenshotView />}
       
-      <main className="py-6 px-4 max-w-6xl mx-auto">
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Setup Panel */}
-          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
+      {/* Main content with mobile improvements */}
+      <main className="py-4 px-3 sm:py-6 sm:px-4 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          {/* Setup Panel - Improved for mobile */}
+          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} p-4 sm:p-6 rounded-lg shadow`}>
             <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-4 flex items-center`}>
               <Users className={`mr-2 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} size={20} />
               Setup
             </h2>
             
-            <div className="space-y-6">
+            <div className="space-y-5">
               {/* Location Name */}
               <div>
                 <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
@@ -799,7 +812,7 @@ const ScheduleBuilder = () => {
                   value={locationName}
                   onChange={(e) => setLocationName(e.target.value)}
                   placeholder="Enter location name"
-                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
+                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                 />
               </div>
               
@@ -813,32 +826,32 @@ const ScheduleBuilder = () => {
                   type="date"
                   value={timeRange.date}
                   onChange={(e) => handleTimeChange('date', e.target.value)}
-                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
+                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                 />
               </div>
               
-              {/* Time Range */}
+              {/* Time Range - Improved for mobile */}
               <div>
                 <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                   <Clock className="inline-block mr-1 mb-0.5" size={16} />
                   Shift Time
                 </label>
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                   <div className="w-full">
                     <input
                       type="time"
                       value={timeRange.startTime}
                       onChange={(e) => handleTimeChange('startTime', e.target.value)}
-                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
+                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                     />
                   </div>
-                  <span className={darkMode ? 'text-gray-400' : 'text-gray-500'}>to</span>
+                  <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center sm:mx-2`}>to</span>
                   <div className="w-full">
                     <input
                       type="time"
                       value={timeRange.endTime}
                       onChange={(e) => handleTimeChange('endTime', e.target.value)}
-                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
+                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                     />
                   </div>
                 </div>
@@ -854,7 +867,7 @@ const ScheduleBuilder = () => {
                   <select
                     value={timeRange.isCustomInterval ? 'custom' : timeRange.interval}
                     onChange={(e) => handleTimeChange('interval', e.target.value)}
-                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
+                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                   >
                     <option value="20">20 minutes</option>
                     <option value="25">25 minutes</option>
@@ -878,13 +891,13 @@ const ScheduleBuilder = () => {
                       max="120"
                       value={timeRange.customInterval}
                       onChange={(e) => handleTimeChange('customInterval', e.target.value)}
-                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
+                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                     />
                   </div>
                 )}
               </div>
               
-              {/* Volunteers */}
+              {/* Volunteers - Improved spacing for mobile */}
               <div>
                 <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                   <Users className="inline-block mr-1 mb-0.5" size={16} />
@@ -898,13 +911,13 @@ const ScheduleBuilder = () => {
                       value={volunteer}
                       onChange={(e) => handleVolunteerChange(index, e.target.value)}
                       placeholder={`Volunteer ${index + 1}`}
-                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
+                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                     />
                   ))}
                 </div>
                 <button
                   onClick={addVolunteer}
-                  className={`mt-2 inline-flex items-center px-3 py-1 text-sm font-medium ${
+                  className={`mt-3 inline-flex items-center px-3 py-2 text-sm font-medium ${
                     darkMode 
                       ? 'text-indigo-300 bg-indigo-900 hover:bg-indigo-800' 
                       : 'text-indigo-600 bg-indigo-100 hover:bg-indigo-200'
@@ -915,15 +928,15 @@ const ScheduleBuilder = () => {
                 </button>
               </div>
               
-              {/* Generate Button */}
+              {/* Generate Button - Increased touch target for mobile */}
               <button
                 onClick={generateSchedule}
                 disabled={isLoading}
-                className="w-full py-2 px-4 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center justify-center"
+                className="w-full py-3 px-4 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center justify-center text-base"
               >
                 {isLoading ? (
                   <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
@@ -934,8 +947,8 @@ const ScheduleBuilder = () => {
             </div>
           </div>
           
-          {/* Schedule Panel */}
-          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} p-6 rounded-lg shadow`}>
+          {/* Schedule Panel - Improved for mobile */}
+          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} p-4 sm:p-6 rounded-lg shadow`}>
             <div className="flex justify-between items-center mb-4">
               <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} flex items-center`}>
                 <Calendar className={`mr-2 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} size={20} />
@@ -991,26 +1004,26 @@ const ScheduleBuilder = () => {
                   </div>
                 )}
                 
-                {/* Schedule Table */}
-                <div className={`overflow-auto max-h-96 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} rounded-md`}>
+                {/* Schedule Table - Improved for mobile */}
+                <div className={`overflow-x-auto overflow-y-auto max-h-80 sm:max-h-96 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} rounded-md`}>
                   <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
                     <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} sticky top-0`}>
                       <tr>
-                        <th className={`px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                        <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
                           Time
                         </th>
-                        <th className={`px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                          Volunteer 1
+                        <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                          Vol 1
                         </th>
-                        <th className={`px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                          Volunteer 2
+                        <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                          Vol 2
                         </th>
                       </tr>
                     </thead>
                     <tbody className={`${darkMode ? 'bg-gray-800' : 'bg-white'} divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
                       {schedule.map((slot, slotIndex) => (
                         <tr key={slotIndex} className={`${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
-                          <td className={`px-3 py-2 whitespace-nowrap text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                          <td className={`px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
                             {slot.display12}
                           </td>
                           {[0, 1].map(volIndex => {
@@ -1022,12 +1035,12 @@ const ScheduleBuilder = () => {
                                                       duplicateError.slotIndex === slotIndex;
                             
                             return (
-                              <td key={volIndex} className="px-3 py-2 whitespace-nowrap text-sm">
+                              <td key={volIndex} className="px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm">
                                 <div className={`rounded ${hasConflict ? (darkMode ? 'bg-red-900' : 'bg-red-50') : ''} ${hasDuplicateError ? (darkMode ? 'border border-red-700' : 'border border-red-300') : ''}`}>
                                   <select
                                     value={volunteer || ''}
                                     onChange={(e) => updateScheduleVolunteer(slotIndex, volIndex, e.target.value)}
-                                    className={`w-full py-1 px-2 rounded border-0 focus:ring-0 ${darkMode ? 'bg-gray-700 text-white' : ''}`}
+                                    className={`w-full py-1 px-2 rounded border-0 focus:ring-0 text-xs sm:text-sm ${darkMode ? 'bg-gray-700 text-white' : ''}`}
                                     style={{
                                       backgroundColor: volunteer ? colors[volunteer]?.bg : (darkMode ? '#1F2937' : 'transparent'),
                                       color: volunteer ? colors[volunteer]?.text : 'inherit'
@@ -1060,19 +1073,19 @@ const ScheduleBuilder = () => {
                   </table>
                 </div>
                 
-                {/* Finished Button - moved below the schedule */}
+                {/* Finished Button - Larger for better mobile touch target */}
                 <div className="mt-4 flex justify-center">
                   <button
                     onClick={enterScreenshotMode}
-                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700"
+                    className="inline-flex items-center px-5 py-2 text-base font-medium text-white bg-green-600 rounded hover:bg-green-700"
                   >
-                    <Camera size={16} className="mr-2" />
+                    <Camera size={18} className="mr-2" />
                     Finished
                   </button>
                 </div>
               </>
             ) : (
-              <div className={`flex flex-col items-center justify-center h-64 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              <div className={`flex flex-col items-center justify-center h-52 md:h-64 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 <Calendar size={48} className="mb-4 opacity-30" />
                 <p>No schedule generated yet</p>
                 <p className="text-sm">Fill in the setup form and click Generate</p>
@@ -1082,7 +1095,7 @@ const ScheduleBuilder = () => {
         </div>
       </main>
       
-      <footer className={`mt-8 py-4 border-t ${darkMode ? 'border-gray-800 text-gray-400' : 'border-gray-200 text-gray-500'} text-center text-xs`}>
+      <footer className={`mt-6 py-4 border-t ${darkMode ? 'border-gray-800 text-gray-400' : 'border-gray-200 text-gray-500'} text-center text-xs`}>
         Volunteer Schedule Builder
       </footer>
     </div>
