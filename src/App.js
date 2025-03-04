@@ -20,6 +20,7 @@ const ScheduleBuilder = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [screenshotMode, setScreenshotMode] = useState(false);
   const [showSaveInstructions, setShowSaveInstructions] = useState(false);
+  const [showIOSInstructions, setShowIOSInstructions] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [copyStatus, setCopyStatus] = useState(null); // 'copying', 'success', 'error'
   const [showCopyFallback, setShowCopyFallback] = useState(false);
@@ -503,6 +504,7 @@ const ScheduleBuilder = () => {
     setScreenshotMode(true);
     setShowSaveInstructions(false);
     setShowCopyFallback(false);
+    setShowIOSInstructions(false);
     setCopyStatus(null);
   };
   
@@ -510,15 +512,17 @@ const ScheduleBuilder = () => {
   const showSaveHelp = () => {
     setShowSaveInstructions(true);
     setShowCopyFallback(false);
+    setShowIOSInstructions(false);
   };
   
-  // Copy schedule to clipboard
+  // iOS-compatible copy/share function
   const copyScheduleToClipboard = async () => {
     if (!scheduleRef.current) return;
     
     setCopyStatus('copying');
     
     try {
+      // Create high-quality canvas from schedule
       const canvas = await html2canvas(scheduleRef.current, {
         backgroundColor: darkMode ? '#1a202c' : '#ffffff',
         scale: 2,
@@ -529,53 +533,94 @@ const ScheduleBuilder = () => {
         foreignObjectRendering: false
       });
       
-      // Try clipboard API
-      if (navigator.clipboard && navigator.clipboard.write) {
-        // Convert canvas to blob
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      // Convert canvas to blob for sharing
+      const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const imageUrl = canvas.toDataURL('image/png');
+      
+      // Detect iOS - this is a simple check but covers most cases
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      
+      // iOS-specific behavior - prioritize sharing
+      if (isIOS) {
+        if (navigator.share && navigator.canShare) {
+          try {
+            const file = new File([imageBlob], 'schedule.png', { type: 'image/png' });
+            const shareData = { 
+              files: [file],
+              title: 'Volunteer Schedule'
+            };
+            
+            // Check if we can share files (iOS 15+ supports this)
+            if (navigator.canShare(shareData)) {
+              await navigator.share(shareData);
+              setCopyStatus('success');
+              setTimeout(() => setCopyStatus(null), 2000);
+              return;
+            }
+          } catch (shareError) {
+            console.log('Share API file sharing error:', shareError);
+            // Continue to fallbacks
+          }
+        }
         
+        // For older iOS versions, try to use a different share approach
+        // Create a temporary hidden link and click it
         try {
-          // Create a ClipboardItem and write to clipboard
-          const item = new ClipboardItem({ 'image/png': blob });
+          const link = document.createElement('a');
+          link.href = imageUrl;
+          link.download = 'schedule.png';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setCopyStatus('success');
+          setTimeout(() => setCopyStatus(null), 2000);
+          return;
+        } catch (linkError) {
+          console.log('Link download error:', linkError);
+        }
+        
+        // If all automated methods fail, show iOS-specific instructions
+        setCopyStatus('error');
+        setShowIOSInstructions(true);
+        return;
+      }
+      
+      // Non-iOS path - try Clipboard API first
+      if (navigator.clipboard && navigator.clipboard.write) {
+        try {
+          const item = new ClipboardItem({ 'image/png': imageBlob });
           await navigator.clipboard.write([item]);
-          
           setCopyStatus('success');
           setTimeout(() => setCopyStatus(null), 2000);
           return;
         } catch (clipError) {
-          console.log('Advanced clipboard API failed, trying fallback:', clipError);
-          // Continue to fallback methods
+          console.log('Clipboard API error:', clipError);
+          // Fall through to alternatives
         }
-      } 
+      }
       
-      // Fallback for browsers without ClipboardItem support
-      try {
-        // For many mobile browsers, we can try sharing the image
-        if (navigator.share) {
-          const imageUrl = canvas.toDataURL('image/png');
-          const blob = await fetch(imageUrl).then(r => r.blob());
-          const file = new File([blob], 'schedule.png', { type: 'image/png' });
-          
+      // Try Share API as fallback for non-iOS devices
+      if (navigator.share) {
+        try {
+          const file = new File([imageBlob], 'schedule.png', { type: 'image/png' });
           await navigator.share({
             files: [file],
-            title: 'Volunteer Schedule',
-            text: 'Here is the volunteer schedule'
+            title: 'Volunteer Schedule'
           });
-          
           setCopyStatus('success');
           setTimeout(() => setCopyStatus(null), 2000);
           return;
+        } catch (shareError) {
+          console.log('Share API error:', shareError);
         }
-      } catch (shareError) {
-        console.log('Share API failed:', shareError);
       }
       
-      // If all else fails, show manual instructions
+      // Last resort - manual copy instructions
       setCopyStatus('error');
       setShowCopyFallback(true);
       
     } catch (err) {
-      console.error('Error creating or copying image:', err);
+      console.error('Error creating image:', err);
       setCopyStatus('error');
       setShowCopyFallback(true);
     }
@@ -806,7 +851,7 @@ const ScheduleBuilder = () => {
             </div>
           </div>
           
-          {/* Copy button with status indication */}
+          {/* Share button with status indication */}
           <div className="flex justify-center mt-4 mb-2">
             <button
               onClick={copyScheduleToClipboard}
@@ -825,22 +870,22 @@ const ScheduleBuilder = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Copying...
+                  Processing...
                 </>
               ) : copyStatus === 'success' ? (
                 <>
                   <Check className="mr-2" size={20} />
-                  Copied!
+                  Success!
                 </>
               ) : copyStatus === 'error' ? (
                 <>
                   <AlertCircle className="mr-2" size={20} />
-                  Copy Failed
+                  Try Another Method
                 </>
               ) : (
                 <>
                   <Copy className="mr-2" size={20} />
-                  Copy to Clipboard
+                  Share Schedule
                 </>
               )}
             </button>
@@ -848,7 +893,7 @@ const ScheduleBuilder = () => {
           
           <div className="text-center mb-4">
             <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              Copy and paste this schedule into text messages or emails
+              Share this schedule via message or save to your device
             </p>
           </div>
         </div>
@@ -902,6 +947,44 @@ const ScheduleBuilder = () => {
               >
                 Got it
               </button>
+            </div>
+          </div>
+        )}
+        
+        {/* iOS-specific Instructions Modal */}
+        {showIOSInstructions && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-lg shadow-lg max-w-sm mx-auto w-full`}>
+              <h3 className="text-lg font-bold mb-2 flex items-center">
+                <Smartphone className="mr-2" size={20} />
+                iPhone Instructions
+              </h3>
+              <div className="mb-4">
+                <p className="mb-2 text-sm">To share this schedule from your iPhone:</p>
+                <ol className={`list-decimal pl-5 text-sm space-y-2 ${darkMode ? 'text-gray-300' : ''}`}>
+                  <li>Take a screenshot by pressing the side button and volume up button at the same time</li>
+                  <li>Tap the screenshot preview in the bottom-left corner</li>
+                  <li>Use the crop tool to adjust if needed</li>
+                  <li>Tap the share icon (square with arrow) and select your messaging app</li>
+                </ol>
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => {
+                    setShowIOSInstructions(false);
+                    downloadScheduleImage();
+                  }}
+                  className="flex-1 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center"
+                >
+                  <Download size={16} className="mr-1" /> Download
+                </button>
+                <button 
+                  onClick={() => setShowIOSInstructions(false)}
+                  className="flex-1 py-2 bg-gray-600 text-white rounded-md"
+                >
+                  Got it
+                </button>
+              </div>
             </div>
           </div>
         )}
