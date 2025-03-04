@@ -516,180 +516,559 @@ const ScheduleBuilder = () => {
   };
   
   // iOS-compatible copy/share function
-  const copyScheduleToClipboard = async () => {
-    if (!scheduleRef.current) return;
-    
-    setCopyStatus('copying');
-    
-    try {
-      // Create high-quality canvas from schedule
-      const canvas = await html2canvas(scheduleRef.current, {
-        backgroundColor: darkMode ? '#1a202c' : '#ffffff',
-        scale: 2,
-        logging: false,
-        useCORS: true,
-        letterRendering: true,
-        allowTaint: true,
-        foreignObjectRendering: false
-      });
-      
-      // Convert canvas to blob for sharing
-      const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-      const imageUrl = canvas.toDataURL('image/png');
-      
-      // Detect iOS - this is a simple check but covers most cases
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      
-      // iOS-specific behavior - prioritize sharing
-      if (isIOS) {
-        if (navigator.share && navigator.canShare) {
-          try {
-            const file = new File([imageBlob], 'schedule.png', { type: 'image/png' });
-            const shareData = { 
-              files: [file],
-              title: 'Volunteer Schedule'
-            };
-            
-            // Check if we can share files (iOS 15+ supports this)
-            if (navigator.canShare(shareData)) {
-              await navigator.share(shareData);
-              setCopyStatus('success');
-              setTimeout(() => setCopyStatus(null), 2000);
-              return;
-            }
-          } catch (shareError) {
-            console.log('Share API file sharing error:', shareError);
-            // Continue to fallbacks
-          }
-        }
-        
-        // For older iOS versions, try to use a different share approach
-        // Create a temporary hidden link and click it
-        try {
-          const link = document.createElement('a');
-          link.href = imageUrl;
-          link.download = 'schedule.png';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          setCopyStatus('success');
-          setTimeout(() => setCopyStatus(null), 2000);
-          return;
-        } catch (linkError) {
-          console.log('Link download error:', linkError);
-        }
-        
-        // If all automated methods fail, show iOS-specific instructions
-        setCopyStatus('error');
-        setShowIOSInstructions(true);
-        return;
-      }
-      
-      // Non-iOS path - try Clipboard API first
-      if (navigator.clipboard && navigator.clipboard.write) {
-        try {
-          const item = new ClipboardItem({ 'image/png': imageBlob });
-          await navigator.clipboard.write([item]);
-          setCopyStatus('success');
-          setTimeout(() => setCopyStatus(null), 2000);
-          return;
-        } catch (clipError) {
-          console.log('Clipboard API error:', clipError);
-          // Fall through to alternatives
-        }
-      }
-      
-      // Try Share API as fallback for non-iOS devices
-      if (navigator.share) {
-        try {
-          const file = new File([imageBlob], 'schedule.png', { type: 'image/png' });
-          await navigator.share({
-            files: [file],
-            title: 'Volunteer Schedule'
-          });
-          setCopyStatus('success');
-          setTimeout(() => setCopyStatus(null), 2000);
-          return;
-        } catch (shareError) {
-          console.log('Share API error:', shareError);
-        }
-      }
-      
-      // Last resort - manual copy instructions
-      setCopyStatus('error');
-      setShowCopyFallback(true);
-      
-    } catch (err) {
-      console.error('Error creating image:', err);
-      setCopyStatus('error');
-      setShowCopyFallback(true);
-    }
-  };
+// Share schedule image with messaging apps
+const copyScheduleToClipboard = async () => {
+  if (!schedule.length) return;
   
-  // Download schedule as image
-  const downloadScheduleImage = () => {
-    if (!scheduleRef.current) return;
+  setCopyStatus('copying');
+  
+  try {
+    // Create a canvas element with appropriate dimensions
+    const canvas = document.createElement('canvas');
     
-    // Show a loading indicator or message
-    const downloadBtn = document.querySelector('.download-btn');
-    if (downloadBtn) {
-      const originalContent = downloadBtn.innerHTML;
-      downloadBtn.innerHTML = '<span>Downloading...</span>';
+    // Configuration for the schedule rendering
+    const config = {
+      padding: 20,
+      headerHeight: 60,
+      rowHeight: 30,
+      timeColumnWidth: 120,
+      volunteerColumnWidth: 300,
+      legendHeight: 40,
+      cornerRadius: 2,
+      borderColor: darkMode ? '#4a5568' : '#e2e8f0',
+      headerBgColor: darkMode ? '#2d3748' : '#f7fafc',
+      alternateRowColor: darkMode ? '#2d3748' : '#f7fafc',
+      mainRowColor: darkMode ? '#1a202c' : '#ffffff',
+      textColor: darkMode ? '#e2e8f0' : '#1a202c',
+      mutedTextColor: darkMode ? '#a0aec0' : '#4a5568',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+      pixelRatio: 2 // For higher resolution
+    };
+    
+    // Calculate canvas dimensions
+    const width = config.timeColumnWidth + config.volunteerColumnWidth + config.padding * 2;
+    const height = config.headerHeight + ((schedule.length + 1) * config.rowHeight) + config.legendHeight + config.padding * 2;
+    
+    // Set canvas size with pixel ratio for high resolution
+    canvas.width = width * config.pixelRatio;
+    canvas.height = height * config.pixelRatio;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.scale(config.pixelRatio, config.pixelRatio);
+    
+    // Apply anti-aliasing
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    // Fill background
+    ctx.fillStyle = darkMode ? '#1a202c' : '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Draw header
+    ctx.fillStyle = darkMode ? '#ffffff' : '#1a202c';
+    ctx.font = `bold 16px ${config.fontFamily}`;
+    ctx.textAlign = 'center';
+    const displayTitle = locationName ? `${locationName} Schedule` : 'Schedule';
+    ctx.fillText(displayTitle, width / 2, config.padding + 20);
+    
+    // Draw date/time
+    ctx.font = `12px ${config.fontFamily}`;
+    ctx.fillStyle = config.mutedTextColor;
+    const dateStr = formatDate(timeRange.date);
+    const timeStr = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
+    ctx.fillText(`${dateStr} • ${timeStr}`, width / 2, config.padding + 40);
+    
+    // Table dimensions and position
+    const tableTop = config.padding + config.headerHeight;
+    const tableWidth = width - config.padding * 2;
+    const tableHeight = (schedule.length + 1) * config.rowHeight; // +1 for header
+    
+    // Draw main table background
+    ctx.fillStyle = darkMode ? '#1a202c' : '#ffffff';
+    ctx.fillRect(config.padding, tableTop, tableWidth, tableHeight);
+    
+    // Draw header row background
+    ctx.fillStyle = config.headerBgColor;
+    ctx.fillRect(config.padding, tableTop, tableWidth, config.rowHeight);
+    
+    // Draw row backgrounds (alternating)
+    for (let i = 0; i < schedule.length; i++) {
+      if (i % 2 === 1) {
+        ctx.fillStyle = config.alternateRowColor;
+        // Don't cover the borders - make the background slightly smaller
+        ctx.fillRect(
+          config.padding + 1, 
+          tableTop + config.rowHeight + (i * config.rowHeight) + 1, 
+          tableWidth - 2, 
+          config.rowHeight - 1
+        );
+      }
+    }
+    
+    // Draw grid lines AFTER backgrounds so they're always visible
+    ctx.strokeStyle = config.borderColor;
+    ctx.lineWidth = 1;
+    
+    // Outer border
+    ctx.strokeRect(config.padding, tableTop, tableWidth, tableHeight);
+    
+    // Vertical divider for columns - draw AFTER the row backgrounds
+    ctx.beginPath();
+    ctx.moveTo(config.padding + config.timeColumnWidth, tableTop);
+    ctx.lineTo(config.padding + config.timeColumnWidth, tableTop + tableHeight);
+    ctx.stroke();
+    
+    // Horizontal grid lines - draw AFTER the row backgrounds
+    for (let i = 1; i <= schedule.length + 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(config.padding, tableTop + i * config.rowHeight);
+      ctx.lineTo(width - config.padding, tableTop + i * config.rowHeight);
+      ctx.stroke();
+    }
+    
+    // Draw header text
+    ctx.fillStyle = config.textColor;
+    ctx.font = `500 12px ${config.fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.fillText('Time', config.padding + 10, tableTop + config.rowHeight / 2 + 5);
+    
+    ctx.textAlign = 'center';
+    ctx.fillText('Volunteers', config.padding + config.timeColumnWidth + config.volunteerColumnWidth / 2, 
+                tableTop + config.rowHeight / 2 + 5);
+    
+    // Draw schedule rows (data rows)
+    schedule.forEach((slot, index) => {
+      // Calculate row position (offset by header row)
+      const y = tableTop + config.rowHeight + (index * config.rowHeight);
       
-      // Temporarily disable the dark mode styles for consistent rendering
-      const tempDarkModeClass = document.body.classList.contains('dark');
-      if (tempDarkModeClass) {
-        document.body.classList.remove('dark');
+      // Time text
+      ctx.fillStyle = config.textColor;
+      ctx.font = `500 12px ${config.fontFamily}`;
+      ctx.textAlign = 'left';
+      ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 + 5);
+      
+      // Draw volunteer boxes
+      const volunteerWidth = config.volunteerColumnWidth / 2 - 8;
+      slot.volunteers.forEach((volunteer, vIndex) => {
+        if (!volunteer) return;
+        
+        const vx = config.padding + config.timeColumnWidth + 4 + vIndex * (volunteerWidth + 8);
+        const vy = y + 5;
+        const vHeight = config.rowHeight - 10;
+        
+        // Volunteer background - draw a rounded rectangle
+        const radius = config.cornerRadius;
+        ctx.fillStyle = colors[volunteer]?.bg || config.alternateRowColor;
+        
+        // Draw rounded rectangle
+        ctx.beginPath();
+        ctx.moveTo(vx + radius, vy);
+        ctx.lineTo(vx + volunteerWidth - radius, vy);
+        ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
+        ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
+        ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
+        ctx.lineTo(vx + radius, vy + vHeight);
+        ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
+        ctx.lineTo(vx, vy + radius);
+        ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Volunteer text
+        ctx.fillStyle = colors[volunteer]?.text || config.textColor;
+        ctx.font = `11px ${config.fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(volunteer, vx + volunteerWidth / 2, vy + vHeight / 2);
+        ctx.textBaseline = 'alphabetic';
+      });
+    });
+    
+    // Draw legend
+    const legendY = tableTop + tableHeight + 10;
+    const shiftCounts = schedule[0]?.shiftCounts || {};
+    const volunteers = Object.keys(shiftCounts);
+    
+    let legendX = config.padding;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `11px ${config.fontFamily}`;
+    
+    volunteers.forEach(volunteer => {
+      const count = shiftCounts[volunteer];
+      const legendText = `${volunteer}:${count}`;
+      const textWidth = ctx.measureText(legendText).width;
+      const legendWidth = textWidth + 16;
+      const legendHeight = 18;
+      const radius = config.cornerRadius;
+      
+      // Background - draw a rounded rectangle
+      ctx.fillStyle = colors[volunteer]?.bg || config.alternateRowColor;
+      
+      // Draw rounded rectangle
+      ctx.beginPath();
+      ctx.moveTo(legendX + radius, legendY);
+      ctx.lineTo(legendX + legendWidth - radius, legendY);
+      ctx.quadraticCurveTo(legendX + legendWidth, legendY, legendX + legendWidth, legendY + radius);
+      ctx.lineTo(legendX + legendWidth, legendY + legendHeight - radius);
+      ctx.quadraticCurveTo(legendX + legendWidth, legendY + legendHeight, legendX + legendWidth - radius, legendY + legendHeight);
+      ctx.lineTo(legendX + radius, legendY + legendHeight);
+      ctx.quadraticCurveTo(legendX, legendY + legendHeight, legendX, legendY + legendHeight - radius);
+      ctx.lineTo(legendX, legendY + radius);
+      ctx.quadraticCurveTo(legendX, legendY, legendX + radius, legendY);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Text
+      ctx.fillStyle = colors[volunteer]?.text || config.textColor;
+      ctx.fillText(legendText, legendX + legendWidth / 2, legendY + legendHeight / 2);
+      
+      legendX += legendWidth + 6;
+    });
+    
+    // Convert canvas to blob for sharing
+    const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const imageUrl = canvas.toDataURL('image/png');
+    
+    // Create file name
+    const dateString = timeRange.date.replace(/-/g, '');
+    const locationText = locationName ? `${locationName.replace(/\s+/g, '_')}` : 'Volunteer';
+    const filename = `${locationText}_Schedule_${dateString}.png`;
+    
+    // Detect iOS - this is a simple check but covers most cases
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
+    // Try to use modern Web Share API first (works on most mobile devices)
+    if (navigator.share && navigator.canShare) {
+      try {
+        const file = new File([imageBlob], filename, { type: 'image/png' });
+        const shareData = { 
+          files: [file],
+          title: 'Volunteer Schedule'
+        };
+        
+        // Check if we can share files
+        if (navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+          setCopyStatus('success');
+          setTimeout(() => setCopyStatus(null), 2000);
+          return;
+        }
+      } catch (shareError) {
+        console.log('Share API file sharing error:', shareError);
+        // Fall through to alternatives
+      }
+    }
+    
+    // iOS-specific behavior if Web Share API failed
+    if (isIOS) {
+      // Try to trigger a download which can then be shared
+      try {
+        const link = document.createElement('a');
+        link.href = imageUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setCopyStatus('success');
+        setTimeout(() => setCopyStatus(null), 2000);
+        
+        // Show iOS instructions after a small delay
+        setTimeout(() => {
+          setShowIOSInstructions(true);
+        }, 300);
+        return;
+      } catch (linkError) {
+        console.log('Link download error:', linkError);
       }
       
-      // Enhanced html2canvas settings
-      html2canvas(scheduleRef.current, {
-        backgroundColor: darkMode ? '#1a202c' : '#ffffff',
-        scale: 3, // Increased for better quality
-        logging: false,
-        useCORS: true,
-        letterRendering: true, // Helps with text rendering
-        allowTaint: true, // Helps with some rendering issues
-        foreignObjectRendering: false // Sometimes helps with text rendering issues
-      }).then(canvas => {
-        // Restore dark mode class if it was temporarily removed
-        if (tempDarkModeClass) {
-          document.body.classList.add('dark');
-        }
-        
-        // Convert canvas to PNG image
-        const image = canvas.toDataURL('image/png');
-        
-        // Create download link
-        const downloadLink = document.createElement('a');
-        
-        // Set filename with date
-        const dateString = timeRange.date.replace(/-/g, '');
-        const locationText = locationName ? `${locationName.replace(/\s+/g, '_')}` : 'Volunteer';
-        const filename = `${locationText}_Schedule_${dateString}.png`;
-        
-        downloadLink.download = filename;
-        downloadLink.href = image;
-        downloadLink.click();
-        
-        // Restore original button content
-        if (downloadBtn) {
-          downloadBtn.innerHTML = originalContent;
-        }
-      }).catch(err => {
-        // Restore dark mode class in case of error
-        if (tempDarkModeClass) {
-          document.body.classList.add('dark');
-        }
-        
-        console.error('Error generating screenshot:', err);
-        alert('Could not create image. Please try again or use screenshot instructions.');
-        if (downloadBtn) {
-          downloadBtn.innerHTML = originalContent;
-        }
-      });
+      // If all automated methods fail, show iOS-specific instructions
+      setCopyStatus('error');
+      setShowIOSInstructions(true);
+      return;
     }
-  };
+    
+    // Non-iOS path - try Clipboard API
+    if (navigator.clipboard && navigator.clipboard.write) {
+      try {
+        const item = new ClipboardItem({ 'image/png': imageBlob });
+        await navigator.clipboard.write([item]);
+        setCopyStatus('success');
+        setTimeout(() => setCopyStatus(null), 2000);
+        return;
+      } catch (clipError) {
+        console.log('Clipboard API error:', clipError);
+        // Fall through to alternatives
+      }
+    }
+    
+    // Last resort - try generic download
+    try {
+      const link = document.createElement('a');
+      link.href = imageUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setCopyStatus('success');
+      setTimeout(() => setCopyStatus(null), 2000);
+    } catch (downloadError) {
+      console.log('Download error:', downloadError);
+      // Show fallback instructions
+      setCopyStatus('error');
+      setShowCopyFallback(true);
+    }
+    
+  } catch (err) {
+    console.error('Error creating image:', err);
+    setCopyStatus('error');
+    setShowCopyFallback(true);
+  }
+};
+  
+  // Download schedule as image - CANVAS BASED APPROACH
+const downloadScheduleImage = () => {
+  if (!schedule.length) return;
+  
+  // Show loading indicator
+  const downloadBtn = document.querySelector('.download-btn');
+  let originalContent = '';
+  if (downloadBtn) {
+    originalContent = downloadBtn.innerHTML;
+    downloadBtn.innerHTML = '<span>Downloading...</span>';
+  }
+  
+  try {
+    // Create a canvas element with appropriate dimensions
+    const canvas = document.createElement('canvas');
+    
+    // Configuration for the schedule rendering
+    const config = {
+      padding: 20,
+      headerHeight: 60,
+      rowHeight: 30,
+      timeColumnWidth: 120,
+      volunteerColumnWidth: 300,
+      legendHeight: 40,
+      cornerRadius: 2,
+      borderColor: darkMode ? '#4a5568' : '#e2e8f0',
+      headerBgColor: darkMode ? '#2d3748' : '#f7fafc',
+      alternateRowColor: darkMode ? '#2d3748' : '#f7fafc',
+      mainRowColor: darkMode ? '#1a202c' : '#ffffff',
+      textColor: darkMode ? '#e2e8f0' : '#1a202c',
+      mutedTextColor: darkMode ? '#a0aec0' : '#4a5568',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+      pixelRatio: 2 // For higher resolution
+    };
+    
+    // Calculate canvas dimensions
+    const width = config.timeColumnWidth + config.volunteerColumnWidth + config.padding * 2;
+    const height = config.headerHeight + ((schedule.length + 1) * config.rowHeight) + config.legendHeight + config.padding * 2;
+    
+    // Set canvas size with pixel ratio for high resolution
+    canvas.width = width * config.pixelRatio;
+    canvas.height = height * config.pixelRatio;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.scale(config.pixelRatio, config.pixelRatio);
+    
+    // Apply anti-aliasing
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    // Fill background
+    ctx.fillStyle = darkMode ? '#1a202c' : '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Draw header
+    ctx.fillStyle = darkMode ? '#ffffff' : '#1a202c';
+    ctx.font = `bold 16px ${config.fontFamily}`;
+    ctx.textAlign = 'center';
+    const displayTitle = locationName ? `${locationName} Schedule` : 'Schedule';
+    ctx.fillText(displayTitle, width / 2, config.padding + 20);
+    
+    // Draw date/time
+    ctx.font = `12px ${config.fontFamily}`;
+    ctx.fillStyle = config.mutedTextColor;
+    const dateStr = formatDate(timeRange.date);
+    const timeStr = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
+    ctx.fillText(`${dateStr} • ${timeStr}`, width / 2, config.padding + 40);
+    
+    // Table dimensions and position
+    const tableTop = config.padding + config.headerHeight;
+    const tableWidth = width - config.padding * 2;
+    const tableHeight = (schedule.length + 1) * config.rowHeight; // +1 for header
+    
+    // Draw main table background
+    ctx.fillStyle = darkMode ? '#1a202c' : '#ffffff';
+    ctx.fillRect(config.padding, tableTop, tableWidth, tableHeight);
+    
+    // Draw header row background
+    ctx.fillStyle = config.headerBgColor;
+    ctx.fillRect(config.padding, tableTop, tableWidth, config.rowHeight);
+    
+    // Draw row backgrounds (alternating)
+    for (let i = 0; i < schedule.length; i++) {
+      if (i % 2 === 1) {
+        ctx.fillStyle = config.alternateRowColor;
+        // Don't cover the borders - make the background slightly smaller
+        ctx.fillRect(
+          config.padding + 1, 
+          tableTop + config.rowHeight + (i * config.rowHeight) + 1, 
+          tableWidth - 2, 
+          config.rowHeight - 1
+        );
+      }
+    }
+    
+    // Draw grid lines AFTER backgrounds so they're always visible
+    ctx.strokeStyle = config.borderColor;
+    ctx.lineWidth = 1;
+    
+    // Outer border
+    ctx.strokeRect(config.padding, tableTop, tableWidth, tableHeight);
+    
+    // Vertical divider for columns - draw AFTER the row backgrounds
+    ctx.beginPath();
+    ctx.moveTo(config.padding + config.timeColumnWidth, tableTop);
+    ctx.lineTo(config.padding + config.timeColumnWidth, tableTop + tableHeight);
+    ctx.stroke();
+    
+    // Horizontal grid lines - draw AFTER the row backgrounds
+    for (let i = 1; i <= schedule.length + 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(config.padding, tableTop + i * config.rowHeight);
+      ctx.lineTo(width - config.padding, tableTop + i * config.rowHeight);
+      ctx.stroke();
+    }
+    
+    // Draw header text
+    ctx.fillStyle = config.textColor;
+    ctx.font = `500 12px ${config.fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.fillText('Time', config.padding + 10, tableTop + config.rowHeight / 2 + 5);
+    
+    ctx.textAlign = 'center';
+    ctx.fillText('Volunteers', config.padding + config.timeColumnWidth + config.volunteerColumnWidth / 2, 
+                tableTop + config.rowHeight / 2 + 5);
+    
+    // Draw schedule rows (data rows)
+    schedule.forEach((slot, index) => {
+      // Calculate row position (offset by header row)
+      const y = tableTop + config.rowHeight + (index * config.rowHeight);
+      
+      // Time text
+      ctx.fillStyle = config.textColor;
+      ctx.font = `500 12px ${config.fontFamily}`;
+      ctx.textAlign = 'left';
+      ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 + 5);
+      
+      // Draw volunteer boxes
+      const volunteerWidth = config.volunteerColumnWidth / 2 - 8;
+      slot.volunteers.forEach((volunteer, vIndex) => {
+        if (!volunteer) return;
+        
+        const vx = config.padding + config.timeColumnWidth + 4 + vIndex * (volunteerWidth + 8);
+        const vy = y + 5;
+        const vHeight = config.rowHeight - 10;
+        
+        // Volunteer background - draw a rounded rectangle
+        const radius = config.cornerRadius;
+        ctx.fillStyle = colors[volunteer]?.bg || config.alternateRowColor;
+        
+        // Draw rounded rectangle
+        ctx.beginPath();
+        ctx.moveTo(vx + radius, vy);
+        ctx.lineTo(vx + volunteerWidth - radius, vy);
+        ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
+        ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
+        ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
+        ctx.lineTo(vx + radius, vy + vHeight);
+        ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
+        ctx.lineTo(vx, vy + radius);
+        ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Volunteer text
+        ctx.fillStyle = colors[volunteer]?.text || config.textColor;
+        ctx.font = `11px ${config.fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(volunteer, vx + volunteerWidth / 2, vy + vHeight / 2);
+        ctx.textBaseline = 'alphabetic';
+      });
+    });
+    
+    // Draw legend
+    const legendY = tableTop + tableHeight + 10;
+    const shiftCounts = schedule[0]?.shiftCounts || {};
+    const volunteers = Object.keys(shiftCounts);
+    
+    let legendX = config.padding;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `11px ${config.fontFamily}`;
+    
+    volunteers.forEach(volunteer => {
+      const count = shiftCounts[volunteer];
+      const legendText = `${volunteer}:${count}`;
+      const textWidth = ctx.measureText(legendText).width;
+      const legendWidth = textWidth + 16;
+      const legendHeight = 18;
+      const radius = config.cornerRadius;
+      
+      // Background - draw a rounded rectangle
+      ctx.fillStyle = colors[volunteer]?.bg || config.alternateRowColor;
+      
+      // Draw rounded rectangle
+      ctx.beginPath();
+      ctx.moveTo(legendX + radius, legendY);
+      ctx.lineTo(legendX + legendWidth - radius, legendY);
+      ctx.quadraticCurveTo(legendX + legendWidth, legendY, legendX + legendWidth, legendY + radius);
+      ctx.lineTo(legendX + legendWidth, legendY + legendHeight - radius);
+      ctx.quadraticCurveTo(legendX + legendWidth, legendY + legendHeight, legendX + legendWidth - radius, legendY + legendHeight);
+      ctx.lineTo(legendX + radius, legendY + legendHeight);
+      ctx.quadraticCurveTo(legendX, legendY + legendHeight, legendX, legendY + legendHeight - radius);
+      ctx.lineTo(legendX, legendY + radius);
+      ctx.quadraticCurveTo(legendX, legendY, legendX + radius, legendY);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Text
+      ctx.fillStyle = colors[volunteer]?.text || config.textColor;
+      ctx.fillText(legendText, legendX + legendWidth / 2, legendY + legendHeight / 2);
+      
+      legendX += legendWidth + 6;
+    });
+    
+    // Convert to image and download
+    const image = canvas.toDataURL('image/png');
+    const downloadLink = document.createElement('a');
+    const dateString = timeRange.date.replace(/-/g, '');
+    const locationText = locationName ? `${locationName.replace(/\s+/g, '_')}` : 'Volunteer';
+    const filename = `${locationText}_Schedule_${dateString}.png`;
+    
+    downloadLink.download = filename;
+    downloadLink.href = image;
+    downloadLink.click();
+    
+    // Reset button state
+    if (downloadBtn) {
+      downloadBtn.innerHTML = originalContent;
+    }
+  } catch (err) {
+    console.error('Error generating image:', err);
+    alert('Could not create image. Please try again.');
+    if (downloadBtn) {
+      downloadBtn.innerHTML = originalContent;
+    }
+  }
+};
   
   // The compact screenshot view component optimized for mobile
   const ScreenshotView = () => {
@@ -802,16 +1181,15 @@ const ScheduleBuilder = () => {
                           <div 
                             key={vIndex}
                             style={{ 
-                              display: 'inline-block',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               width: '45%',
                               height: '22px',
                               backgroundColor: colors[volunteer]?.bg || 'transparent',
                               color: colors[volunteer]?.text || 'inherit',
                               borderRadius: '2px',
                               fontSize: '11px',
-                              lineHeight: '22px', // CRITICAL: line-height exactly matching the element height
-                              textAlign: 'center',
-                              verticalAlign: 'top',
                               margin: '0 2px'
                             }}
                           >
@@ -825,21 +1203,21 @@ const ScheduleBuilder = () => {
               </tbody>
             </table>
             
-            {/* Legend using line-height for vertical alignment */}
+            {/* Legend using flex for vertical alignment */}
             <div style={{ fontSize: '11px', marginBottom: '4px' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                 {Object.keys(shiftCounts).map((volunteer, index) => (
                   <div 
                     key={index}
                     style={{ 
-                      display: 'inline-block',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       height: '18px',
-                      lineHeight: '18px', // CRITICAL: line-height exactly matching the element height
                       backgroundColor: colors[volunteer]?.bg || 'transparent',
                       color: colors[volunteer]?.text || 'inherit',
                       borderRadius: '2px',
                       fontSize: '11px',
-                      textAlign: 'center',
                       padding: '0 4px',
                       margin: '0 2px'
                     }}
