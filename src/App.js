@@ -8,8 +8,8 @@ const ScheduleBuilder = () => {
   const [volunteerMap, setVolunteerMap] = useState({});  // Added volunteerMap
   const [locationName, setLocationName] = useState('');
   const [timeRange, setTimeRange] = useState({ 
-    startTime: '16:00', 
-    endTime: '20:00', 
+    startTime: '08:00', 
+    endTime: '12:00', 
     interval: 30,
     isCustomInterval: false,
     customInterval: 30,
@@ -236,24 +236,32 @@ const ScheduleBuilder = () => {
   };
   
   // Check if a volunteer is already scheduled in the current or previous slot
-  const isVolunteerAvailable = (volunteer, slotIndex, assignedVolunteers, locationIndex = null) => {
-    if (slotIndex > 0) {
-      const previousSlot = assignedVolunteers[slotIndex - 1];
-      
-      if (multipleLocations && locationIndex !== null) {
-        // For multiple locations, check if volunteer is in any location of previous slot
-        const isInPreviousSlot = previousSlot.some(locationAssignments => 
-          locationAssignments.includes(volunteer)
-        );
-        return !isInPreviousSlot;
-      } else {
-        // For single location
-        if (previousSlot.includes(volunteer)) {
-          return false;
-        }
-      }
+  // This is a more comprehensive version that works for both single and multiple locations
+  const isVolunteerAvailable = (volunteer, slotIndex, assignedVolunteers) => {
+    if (slotIndex <= 0) return true; // First slot has no constraints
+    
+    const previousSlot = assignedVolunteers[slotIndex - 1];
+    
+    // For multiple locations (nested array structure)
+    if (Array.isArray(previousSlot) && Array.isArray(previousSlot[0])) {
+      // Check if volunteer is in any location of previous slot
+      return !previousSlot.some(locationVols => locationVols.includes(volunteer));
+    } 
+    // For single location (flat array structure)
+    else {
+      return !previousSlot.includes(volunteer);
     }
-    return true;
+  };
+  
+  // Check if a volunteer is already scheduled in a specific time slot across all locations
+  const isVolunteerInSlot = (volunteer, slotAssignments) => {
+    if (Array.isArray(slotAssignments[0])) {
+      // Multiple locations
+      return slotAssignments.some(locationVols => locationVols.includes(volunteer));
+    } else {
+      // Single location
+      return slotAssignments.includes(volunteer);
+    }
   };
   
   // Create schedule for multiple locations
@@ -288,9 +296,14 @@ const ScheduleBuilder = () => {
       // For each location
       for (let locationIndex = 0; locationIndex < numLocations; locationIndex++) {
         // Find available volunteers for this location
-        let availableVolunteers = filteredVolunteers.filter(v => 
-          isVolunteerAvailable(v, slotIndex, assignedVolunteers)
-        );
+        let availableVolunteers = filteredVolunteers.filter(v => {
+          // Not already assigned to any location in this time slot
+          const notInCurrentSlot = !isVolunteerInSlot(v, assignedVolunteers[slotIndex]);
+          // Not in previous time slot (back-to-back constraint)
+          const notInPreviousSlot = isVolunteerAvailable(v, slotIndex, assignedVolunteers);
+          
+          return notInCurrentSlot && notInPreviousSlot;
+        });
         
         // If not enough available volunteers, will handle in second pass
         if (availableVolunteers.length < 2) {
@@ -306,15 +319,6 @@ const ScheduleBuilder = () => {
         } else {
           // Original sorting by shift count
           availableVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
-        }
-        
-        // Remove volunteers already assigned to this slot
-        availableVolunteers = availableVolunteers.filter(v => 
-          !assignedVolunteers[slotIndex].some(locVols => locVols.includes(v))
-        );
-        
-        if (availableVolunteers.length < 2) {
-          continue;
         }
         
         // Select first volunteer (least shifts)
@@ -369,10 +373,16 @@ const ScheduleBuilder = () => {
           }
           sortedVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
           
-          // Remove volunteers already assigned to this slot
-          sortedVolunteers = sortedVolunteers.filter(v => 
-            !assignedVolunteers[slotIndex].some(locVols => locVols.includes(v))
-          );
+          // FIXED: Filter out volunteers already assigned to this time slot or previous time slot
+          sortedVolunteers = sortedVolunteers.filter(v => {
+            // Not already assigned to any location in this time slot
+            const notInCurrentSlot = !isVolunteerInSlot(v, assignedVolunteers[slotIndex]);
+            
+            // Not in previous time slot (back-to-back constraint) - this was missing before
+            const notInPreviousSlot = isVolunteerAvailable(v, slotIndex, assignedVolunteers);
+            
+            return notInCurrentSlot && notInPreviousSlot;
+          });
           
           // Fill first position if needed
           if (assignedVolunteers[slotIndex][locationIndex].length === 0 && sortedVolunteers.length > 0) {
@@ -390,15 +400,54 @@ const ScheduleBuilder = () => {
               const secondVolunteer = availableForSecond[0];
               assignedVolunteers[slotIndex][locationIndex].push(secondVolunteer);
               shiftCounts[secondVolunteer]++;
-            } else if (sortedVolunteers.length > 0) {
-              // Last resort if really needed
-              for (const v of filteredVolunteers) {
-                if (v !== firstVolunteer && !assignedVolunteers[slotIndex][locationIndex].includes(v)) {
-                  assignedVolunteers[slotIndex][locationIndex].push(v);
-                  shiftCounts[v]++;
-                  break;
-                }
+            } else {
+              // Last resort - if we can't find someone who meets all constraints
+              // Find someone who at least isn't in the current slot
+              // Filter all volunteers who are not already in this time slot
+              let lastResortCandidates = filteredVolunteers.filter(v => {
+                return v !== firstVolunteer && !isVolunteerInSlot(v, assignedVolunteers[slotIndex]);
+              });
+              
+              // Sort by shift count to maintain fairness
+              lastResortCandidates.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
+              
+              if (lastResortCandidates.length > 0) {
+                const secondVolunteer = lastResortCandidates[0];
+                assignedVolunteers[slotIndex][locationIndex].push(secondVolunteer);
+                shiftCounts[secondVolunteer]++;
               }
+            }
+          }
+        }
+      }
+    });
+    
+    // Third pass (rare cases): If we still have unfilled slots, fill them regardless of constraints
+    // This handles cases where there are too many slots and too few volunteers
+    slots.forEach((slot, slotIndex) => {
+      for (let locationIndex = 0; locationIndex < numLocations; locationIndex++) {
+        if (assignedVolunteers[slotIndex][locationIndex].length < 2) {
+          // Get all volunteers sorted by shift count
+          let lastChanceVolunteers = [...filteredVolunteers];
+          lastChanceVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
+          
+          // Fill first position if needed
+          if (assignedVolunteers[slotIndex][locationIndex].length === 0 && lastChanceVolunteers.length > 0) {
+            const firstVolunteer = lastChanceVolunteers.find(v => !isVolunteerInSlot(v, assignedVolunteers[slotIndex])) || lastChanceVolunteers[0];
+            assignedVolunteers[slotIndex][locationIndex].push(firstVolunteer);
+            shiftCounts[firstVolunteer]++;
+          }
+          
+          // Fill second position if needed
+          if (assignedVolunteers[slotIndex][locationIndex].length === 1) {
+            const firstVolunteer = assignedVolunteers[slotIndex][locationIndex][0];
+            const secondVolunteer = lastChanceVolunteers.find(v => 
+              v !== firstVolunteer && !isVolunteerInSlot(v, assignedVolunteers[slotIndex])
+            ) || lastChanceVolunteers.find(v => v !== firstVolunteer) || (filteredVolunteers.length > 1 ? filteredVolunteers.find(v => v !== firstVolunteer) : filteredVolunteers[0]);
+            
+            if (secondVolunteer) {
+              assignedVolunteers[slotIndex][locationIndex].push(secondVolunteer);
+              shiftCounts[secondVolunteer]++;
             }
           }
         }
@@ -513,6 +562,11 @@ const ScheduleBuilder = () => {
         // But still sort by shift count to maintain some fairness
         sortedVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
         
+        // Keep volunteers not scheduled in the previous slot
+        sortedVolunteers = sortedVolunteers.filter(v => 
+          isVolunteerAvailable(v, slotIndex, assignedVolunteers)
+        );
+        
         // Fill first position if needed
         if (assignedVolunteers[slotIndex].length === 0 && sortedVolunteers.length > 0) {
           const firstVolunteer = sortedVolunteers.shift();
@@ -530,14 +584,24 @@ const ScheduleBuilder = () => {
             const secondVolunteer = availableForSecond[0];
             assignedVolunteers[slotIndex].push(secondVolunteer);
             shiftCounts[secondVolunteer]++;
-          } else if (sortedVolunteers.length > 0) {
-            // If all remaining volunteers are the same as the first (unlikely),
-            // just make sure we add a second different volunteer somehow
-            for (const v of filteredVolunteers) {
-              if (v !== firstVolunteer) {
-                assignedVolunteers[slotIndex].push(v);
-                shiftCounts[v]++;
-                break;
+          } else {
+            // Last resort - try to find anyone not in the back-to-back slot
+            const lastResortOptions = filteredVolunteers.filter(v => 
+              v !== firstVolunteer && isVolunteerAvailable(v, slotIndex, assignedVolunteers)
+            );
+            
+            if (lastResortOptions.length > 0) {
+              const secondVolunteer = lastResortOptions[0];
+              assignedVolunteers[slotIndex].push(secondVolunteer);
+              shiftCounts[secondVolunteer]++;
+            } else if (filteredVolunteers.length > 1) {
+              // Absolute last resort - anyone different from the first volunteer
+              for (const v of filteredVolunteers) {
+                if (v !== firstVolunteer) {
+                  assignedVolunteers[slotIndex].push(v);
+                  shiftCounts[v]++;
+                  break;
+                }
               }
             }
           }
@@ -1977,7 +2041,6 @@ const ScheduleBuilder = () => {
                   className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                 />
               </div>
-              
               {/* Multiple Locations Toggle */}
               <div className="flex items-center">
                 <input
@@ -2387,7 +2450,7 @@ const ScheduleBuilder = () => {
       
       <footer className={`mt-6 py-4 border-t ${darkMode ? 'border-gray-800 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center text-center text-xs">
-          <div>v.1.3</div>
+          <div>v.1.2</div>
           <div className={`mt-1 sm:mt-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
             {schedulesGenerated.toLocaleString()} schedules made with this tool
           </div>
