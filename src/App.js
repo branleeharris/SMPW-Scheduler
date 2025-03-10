@@ -5,6 +5,7 @@ import { incrementScheduleCounter, getScheduleCount } from './firebase';
 
 const ScheduleBuilder = () => {
   const [volunteers, setVolunteers] = useState(['', '', '', '', '']);
+  const [volunteerMap, setVolunteerMap] = useState({});  // Added volunteerMap
   const [locationName, setLocationName] = useState('');
   const [timeRange, setTimeRange] = useState({ 
     startTime: '16:00', 
@@ -62,10 +63,10 @@ const ScheduleBuilder = () => {
     
     // Regenerate colors when mode changes if schedule exists
     if (schedule.length > 0) {
-      const filteredVolunteers = volunteers.filter(v => v.trim() !== '');
-      setColors(generateColors(filteredVolunteers));
+      const internalVolunteers = Object.keys(volunteerMap);
+      setColors(generateColorsForIds(internalVolunteers));
     }
-  }, [darkMode]);
+  }, [darkMode, volunteerMap]);
   
   // Handle volunteer input change
   const handleVolunteerChange = (index, value) => {
@@ -129,8 +130,8 @@ const ScheduleBuilder = () => {
     });
   };
   
-  // Generate colors for volunteers
-  const generateColors = (volunteers) => {
+  // Generate colors for volunteer IDs
+  const generateColorsForIds = (volunteerIds) => {
     const colorMap = {};
     
     // Different color palettes for light and dark mode
@@ -158,10 +159,8 @@ const ScheduleBuilder = () => {
       { bg: '#fdf2f8', text: '#db2777' }  // Rose
     ];
     
-    volunteers.forEach((volunteer, index) => {
-      if (volunteer.trim() !== '') {
-        colorMap[volunteer] = colorPalette[index % colorPalette.length];
-      }
+    volunteerIds.forEach((id, index) => {
+      colorMap[id] = colorPalette[index % colorPalette.length];
     });
     
     return colorMap;
@@ -371,7 +370,8 @@ const ScheduleBuilder = () => {
     setIsLoading(true);
     
     setTimeout(() => {
-      const filteredVolunteers = volunteers.filter(v => v.trim() !== '');
+      // Use the already established volunteer map
+      const internalVolunteers = Object.keys(volunteerMap);
       
       // Generate time slots
       const slots = generateTimeSlots(
@@ -381,7 +381,7 @@ const ScheduleBuilder = () => {
       );
       
       // Create shuffled schedule with randomization flag set to true
-      const { assignments, shiftCounts } = createSchedule(filteredVolunteers, slots, true);
+      const { assignments, shiftCounts } = createSchedule(internalVolunteers, slots, true);
       
       // Create final schedule
       const newSchedule = slots.map((slot, index) => ({
@@ -410,8 +410,17 @@ const ScheduleBuilder = () => {
     
     // Simulate loading for better UX
     setTimeout(() => {
-      // Generate colors
-      const colorMap = generateColors(filteredVolunteers);
+      // Generate internal IDs for each volunteer while preserving their display names
+      const newVolunteerMap = {};
+      const internalVolunteers = filteredVolunteers.map((name, index) => {
+        const internalId = `volunteer-${index}`;
+        newVolunteerMap[internalId] = name.trim();
+        return internalId;
+      });
+      setVolunteerMap(newVolunteerMap);
+      
+      // Generate colors - now using internal IDs
+      const colorMap = generateColorsForIds(internalVolunteers);
       setColors(colorMap);
       
       // Get interval value - either the selected preset or custom value
@@ -426,8 +435,8 @@ const ScheduleBuilder = () => {
         intervalValue
       );
       
-      // Create schedule with randomization flag set to false (default behavior)
-      const { assignments, shiftCounts } = createSchedule(filteredVolunteers, slots, false);
+      // Create schedule with the internal IDs
+      const { assignments, shiftCounts } = createSchedule(internalVolunteers, slots, false);
       
       // Create final schedule
       const newSchedule = slots.map((slot, index) => ({
@@ -475,7 +484,7 @@ const ScheduleBuilder = () => {
     if (newVolunteer && newVolunteer === currentSlot.volunteers[otherIndex]) {
       setDuplicateError({
         slotIndex,
-        message: `${newVolunteer} is already assigned to this shift`
+        message: `${volunteerMap[newVolunteer] || newVolunteer} is already assigned to this shift`
       });
       return; // Don't update if it would create a duplicate
     }
@@ -490,8 +499,9 @@ const ScheduleBuilder = () => {
     
     // Update shift counts
     const shiftCounts = {};
-    const filteredVolunteers = volunteers.filter(v => v.trim() !== '');
-    filteredVolunteers.forEach(v => { shiftCounts[v] = 0; });
+    Object.keys(volunteerMap).forEach(id => {
+      shiftCounts[id] = 0;
+    });
     
     updatedSchedule.forEach(slot => {
       slot.volunteers.forEach(v => {
@@ -694,16 +704,17 @@ const ScheduleBuilder = () => {
         
         // Draw volunteer boxes
         const volunteerWidth = config.volunteerColumnWidth / 2 - 8;
-        slot.volunteers.forEach((volunteer, vIndex) => {
-          if (!volunteer) return;
+        slot.volunteers.forEach((volunteerId, vIndex) => {
+          if (!volunteerId) return;
           
+          const displayName = volunteerMap[volunteerId] || volunteerId;
           const vx = config.padding + config.timeColumnWidth + 4 + vIndex * (volunteerWidth + 8);
           const vy = y + 5;
           const vHeight = config.rowHeight - 10;
           
           // Volunteer background - draw a rounded rectangle
           const radius = config.cornerRadius;
-          ctx.fillStyle = colors[volunteer]?.bg || config.alternateRowColor;
+          ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
           
           // Draw rounded rectangle
           ctx.beginPath();
@@ -720,11 +731,11 @@ const ScheduleBuilder = () => {
           ctx.fill();
           
           // Volunteer text
-          ctx.fillStyle = colors[volunteer]?.text || config.textColor;
+          ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
           ctx.font = `11px ${config.fontFamily}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(volunteer, vx + volunteerWidth / 2, vy + vHeight / 2);
+          ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
           ctx.textBaseline = 'alphabetic';
         });
       });
@@ -739,16 +750,17 @@ const ScheduleBuilder = () => {
       ctx.textBaseline = 'middle';
       ctx.font = `11px ${config.fontFamily}`;
       
-      volunteers.forEach(volunteer => {
-        const count = shiftCounts[volunteer];
-        const legendText = `${volunteer}:${count}`;
+      volunteers.forEach(volunteerId => {
+        const count = shiftCounts[volunteerId];
+        const displayName = volunteerMap[volunteerId] || volunteerId;
+        const legendText = `${displayName}:${count}`;
         const textWidth = ctx.measureText(legendText).width;
         const legendWidth = textWidth + 16;
         const legendHeight = 18;
         const radius = config.cornerRadius;
         
         // Background - draw a rounded rectangle
-        ctx.fillStyle = colors[volunteer]?.bg || config.alternateRowColor;
+        ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
         
         // Draw rounded rectangle
         ctx.beginPath();
@@ -765,7 +777,7 @@ const ScheduleBuilder = () => {
         ctx.fill();
         
         // Text
-        ctx.fillStyle = colors[volunteer]?.text || config.textColor;
+        ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
         ctx.fillText(legendText, legendX + legendWidth / 2, legendY + legendHeight / 2);
         
         legendX += legendWidth + 6;
@@ -1012,16 +1024,17 @@ const ScheduleBuilder = () => {
         
         // Draw volunteer boxes
         const volunteerWidth = config.volunteerColumnWidth / 2 - 8;
-        slot.volunteers.forEach((volunteer, vIndex) => {
-          if (!volunteer) return;
+        slot.volunteers.forEach((volunteerId, vIndex) => {
+          if (!volunteerId) return;
           
+          const displayName = volunteerMap[volunteerId] || volunteerId;
           const vx = config.padding + config.timeColumnWidth + 4 + vIndex * (volunteerWidth + 8);
           const vy = y + 5;
           const vHeight = config.rowHeight - 10;
           
           // Volunteer background - draw a rounded rectangle
           const radius = config.cornerRadius;
-          ctx.fillStyle = colors[volunteer]?.bg || config.alternateRowColor;
+          ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
           
           // Draw rounded rectangle
           ctx.beginPath();
@@ -1038,11 +1051,11 @@ const ScheduleBuilder = () => {
           ctx.fill();
           
           // Volunteer text
-          ctx.fillStyle = colors[volunteer]?.text || config.textColor;
+          ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
           ctx.font = `11px ${config.fontFamily}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(volunteer, vx + volunteerWidth / 2, vy + vHeight / 2);
+          ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
           ctx.textBaseline = 'alphabetic';
         });
       });
@@ -1057,16 +1070,17 @@ const ScheduleBuilder = () => {
       ctx.textBaseline = 'middle';
       ctx.font = `11px ${config.fontFamily}`;
       
-      volunteers.forEach(volunteer => {
-        const count = shiftCounts[volunteer];
-        const legendText = `${volunteer}:${count}`;
+      volunteers.forEach(volunteerId => {
+        const count = shiftCounts[volunteerId];
+        const displayName = volunteerMap[volunteerId] || volunteerId;
+        const legendText = `${displayName}:${count}`;
         const textWidth = ctx.measureText(legendText).width;
         const legendWidth = textWidth + 16;
         const legendHeight = 18;
         const radius = config.cornerRadius;
         
         // Background - draw a rounded rectangle
-        ctx.fillStyle = colors[volunteer]?.bg || config.alternateRowColor;
+        ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
         
         // Draw rounded rectangle
         ctx.beginPath();
@@ -1083,7 +1097,7 @@ const ScheduleBuilder = () => {
         ctx.fill();
         
         // Text
-        ctx.fillStyle = colors[volunteer]?.text || config.textColor;
+        ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
         ctx.fillText(legendText, legendX + legendWidth / 2, legendY + legendHeight / 2);
         
         legendX += legendWidth + 6;
@@ -1220,7 +1234,7 @@ const ScheduleBuilder = () => {
                       textAlign: 'center'
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
-                        {slot.volunteers.map((volunteer, vIndex) => (
+                        {slot.volunteers.map((volunteerId, vIndex) => (
                           <div 
                             key={vIndex}
                             style={{ 
@@ -1229,14 +1243,14 @@ const ScheduleBuilder = () => {
                               justifyContent: 'center',
                               width: '45%',
                               height: '22px',
-                              backgroundColor: colors[volunteer]?.bg || 'transparent',
-                              color: colors[volunteer]?.text || 'inherit',
+                              backgroundColor: colors[volunteerId]?.bg || 'transparent',
+                              color: colors[volunteerId]?.text || 'inherit',
                               borderRadius: '2px',
                               fontSize: '11px',
                               margin: '0 2px'
                             }}
                           >
-                            {volunteer}
+                            {volunteerMap[volunteerId] || volunteerId}
                           </div>
                         ))}
                       </div>
@@ -1249,7 +1263,7 @@ const ScheduleBuilder = () => {
             {/* Legend using flex for vertical alignment */}
             <div style={{ fontSize: '11px', marginBottom: '4px' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {Object.keys(shiftCounts).map((volunteer, index) => (
+                {Object.keys(shiftCounts).map((volunteerId, index) => (
                   <div 
                     key={index}
                     style={{ 
@@ -1257,15 +1271,15 @@ const ScheduleBuilder = () => {
                       alignItems: 'center',
                       justifyContent: 'center',
                       height: '18px',
-                      backgroundColor: colors[volunteer]?.bg || 'transparent',
-                      color: colors[volunteer]?.text || 'inherit',
+                      backgroundColor: colors[volunteerId]?.bg || 'transparent',
+                      color: colors[volunteerId]?.text || 'inherit',
                       borderRadius: '2px',
                       fontSize: '11px',
                       padding: '0 4px',
                       margin: '0 2px'
                     }}
                   >
-                    {volunteer}:{shiftCounts[volunteer]}
+                    {volunteerMap[volunteerId] || volunteerId}:{shiftCounts[volunteerId]}
                   </div>
                 ))}
               </div>
@@ -1636,16 +1650,16 @@ const ScheduleBuilder = () => {
                   <div className={`mb-4 p-3 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-md`}>
                     <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'} mb-2`}>Volunteer Shifts</h3>
                     <div className="flex flex-wrap gap-2">
-                      {Object.entries(schedule[0].shiftCounts || {}).map(([volunteer, count], index) => (
+                      {Object.entries(schedule[0].shiftCounts || {}).map(([volunteerId, count], index) => (
                         <div 
                           key={index}
                           className="px-2 py-1 rounded text-sm inline-flex items-center justify-center"
                           style={{ 
-                            backgroundColor: colors[volunteer]?.bg || 'transparent',
-                            color: colors[volunteer]?.text || 'inherit',
+                            backgroundColor: colors[volunteerId]?.bg || 'transparent',
+                            color: colors[volunteerId]?.text || 'inherit',
                           }}
                         >
-                          {volunteer}: {count}
+                          {volunteerMap[volunteerId] || volunteerId}: {count}
                         </div>
                       ))}
                     </div>
@@ -1675,9 +1689,10 @@ const ScheduleBuilder = () => {
                             {slot.display12}
                           </td>
                           {[0, 1].map(volIndex => {
-                            const volunteer = slot.volunteers[volIndex];
+                            const volunteerId = slot.volunteers[volIndex];
+                            const displayName = volunteerMap[volunteerId] || '';
                             const hasConflict = conflicts.some(c => 
-                              c.slotIndex === slotIndex && c.volunteer === volunteer
+                              c.slotIndex === slotIndex && c.volunteer === volunteerId
                             );
                             const hasDuplicateError = duplicateError && 
                                                       duplicateError.slotIndex === slotIndex;
@@ -1686,17 +1701,17 @@ const ScheduleBuilder = () => {
                               <td key={volIndex} className="px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm">
                                 <div className={`rounded ${hasConflict ? (darkMode ? 'bg-red-900' : 'bg-red-50') : ''} ${hasDuplicateError ? (darkMode ? 'border border-red-700' : 'border border-red-300') : ''}`}>
                                   <select
-                                    value={volunteer || ''}
+                                    value={volunteerId || ''}
                                     onChange={(e) => updateScheduleVolunteer(slotIndex, volIndex, e.target.value)}
                                     className={`w-full py-1 px-2 rounded border-0 focus:ring-0 text-xs sm:text-sm ${darkMode ? 'bg-gray-700 text-white' : ''}`}
                                     style={{
-                                      backgroundColor: volunteer ? colors[volunteer]?.bg : (darkMode ? '#1F2937' : 'transparent'),
-                                      color: volunteer ? colors[volunteer]?.text : 'inherit'
+                                      backgroundColor: volunteerId ? colors[volunteerId]?.bg : (darkMode ? '#1F2937' : 'transparent'),
+                                      color: volunteerId ? colors[volunteerId]?.text : 'inherit'
                                     }}
                                   >
                                     <option value="" className={darkMode ? 'bg-gray-700' : ''}>Select volunteer</option>
-                                    {volunteers.filter(v => v.trim() !== '').map((v, i) => (
-                                      <option key={i} value={v} className={darkMode ? 'bg-gray-700' : ''}>{v}</option>
+                                    {Object.keys(volunteerMap).map((id) => (
+                                      <option key={id} value={id} className={darkMode ? 'bg-gray-700' : ''}>{volunteerMap[id]}</option>
                                     ))}
                                   </select>
                                 </div>
