@@ -28,6 +28,10 @@ const ScheduleBuilder = () => {
   const [showCopyFallback, setShowCopyFallback] = useState(false);
   const [schedulesGenerated, setSchedulesGenerated] = useState(0);
   
+  // New states for multiple locations
+  const [multipleLocations, setMultipleLocations] = useState(false);
+  const [locationNames, setLocationNames] = useState(['Location 1', 'Location 2']);
+  
   const scheduleRef = useRef(null);
   
   // Load global schedule count from Firebase
@@ -99,6 +103,18 @@ const ScheduleBuilder = () => {
     } else {
       setTimeRange(prev => ({ ...prev, [field]: value }));
     }
+  };
+  
+  // Handle location name changes
+  const handleLocationNameChange = (index, value) => {
+    const newLocationNames = [...locationNames];
+    newLocationNames[index] = value;
+    setLocationNames(newLocationNames);
+  };
+  
+  // Toggle multiple locations
+  const handleMultipleLocationsChange = (e) => {
+    setMultipleLocations(e.target.checked);
   };
   
   // Add a new volunteer field
@@ -197,7 +213,9 @@ const ScheduleBuilder = () => {
         endTime: endTimeString,
         display12: `${formatTo12Hour(timeString)} - ${formatTo12Hour(endTimeString)}`,
         compactDisplay: `${formatTo12Hour(timeString)}-${formatTo12Hour(endTimeString)}`,
-        volunteers: []
+        volunteers: [],
+        // For multiple locations, add location-specific volunteer arrays
+        locations: multipleLocations ? locationNames.map(name => ({ name, volunteers: [] })) : []
       });
       
       currentHour = nextHour;
@@ -218,19 +236,186 @@ const ScheduleBuilder = () => {
   };
   
   // Check if a volunteer is already scheduled in the current or previous slot
-  const isVolunteerAvailable = (volunteer, slotIndex, assignedVolunteers) => {
+  const isVolunteerAvailable = (volunteer, slotIndex, assignedVolunteers, locationIndex = null) => {
     if (slotIndex > 0) {
       const previousSlot = assignedVolunteers[slotIndex - 1];
-      if (previousSlot.includes(volunteer)) {
-        return false;
+      
+      if (multipleLocations && locationIndex !== null) {
+        // For multiple locations, check if volunteer is in any location of previous slot
+        const isInPreviousSlot = previousSlot.some(locationAssignments => 
+          locationAssignments.includes(volunteer)
+        );
+        return !isInPreviousSlot;
+      } else {
+        // For single location
+        if (previousSlot.includes(volunteer)) {
+          return false;
+        }
       }
     }
     return true;
   };
   
-  // Create schedule with even workload and maximized variety
-  const createSchedule = (volunteers, slots, randomize = false) => {
+  // Create schedule for multiple locations
+  const createMultiLocationSchedule = (volunteers, slots, randomize = false) => {
     // Apply randomness for shuffling if requested
+    const filteredVolunteers = volunteers.filter(v => v.trim() !== '');
+    const numLocations = locationNames.length;
+    
+    // Track pairings for variety
+    const pairCounts = {};
+    filteredVolunteers.forEach(v1 => {
+      filteredVolunteers.forEach(v2 => {
+        if (v1 !== v2) {
+          pairCounts[`${v1}-${v2}`] = 0;
+        }
+      });
+    });
+    
+    // Track shift counts for even workload
+    const shiftCounts = {};
+    filteredVolunteers.forEach(v => {
+      shiftCounts[v] = 0;
+    });
+    
+    // Track assignments for each location in each slot
+    const assignedVolunteers = slots.map(() => 
+      Array(numLocations).fill().map(() => [])
+    );
+    
+    // First pass: Assign volunteers with availability constraint
+    slots.forEach((slot, slotIndex) => {
+      // For each location
+      for (let locationIndex = 0; locationIndex < numLocations; locationIndex++) {
+        // Find available volunteers for this location
+        let availableVolunteers = filteredVolunteers.filter(v => 
+          isVolunteerAvailable(v, slotIndex, assignedVolunteers)
+        );
+        
+        // If not enough available volunteers, will handle in second pass
+        if (availableVolunteers.length < 2) {
+          continue;
+        }
+        
+        // Introduce randomness when shuffling
+        if (randomize) {
+          // Semi-random approach - we still want some balance in shift counts
+          availableVolunteers = shuffleArray(availableVolunteers);
+          // But we'll still sort by shift count to maintain some fairness
+          availableVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
+        } else {
+          // Original sorting by shift count
+          availableVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
+        }
+        
+        // Remove volunteers already assigned to this slot
+        availableVolunteers = availableVolunteers.filter(v => 
+          !assignedVolunteers[slotIndex].some(locVols => locVols.includes(v))
+        );
+        
+        if (availableVolunteers.length < 2) {
+          continue;
+        }
+        
+        // Select first volunteer (least shifts)
+        const firstVolunteer = availableVolunteers[0];
+        
+        // Find best partner for variety
+        let bestPartner = null;
+        let lowestPairCount = Infinity;
+        
+        // Similar partner selection logic as the original
+        if (randomize && Math.random() < 0.4) {
+          const possiblePartners = availableVolunteers.filter(v => v !== firstVolunteer);
+          if (possiblePartners.length > 0) {
+            bestPartner = possiblePartners[Math.floor(Math.random() * possiblePartners.length)];
+          }
+        } else {
+          for (let i = 1; i < availableVolunteers.length; i++) {
+            const partner = availableVolunteers[i];
+            if (partner === firstVolunteer) continue;
+            
+            const pairKey = `${firstVolunteer}-${partner}`;
+            const reversePairKey = `${partner}-${firstVolunteer}`;
+            const pairCount = (pairCounts[pairKey] || 0) + (pairCounts[reversePairKey] || 0);
+            
+            if (pairCount < lowestPairCount) {
+              lowestPairCount = pairCount;
+              bestPartner = partner;
+            }
+          }
+        }
+        
+        // Assign volunteers
+        if (bestPartner) {
+          assignedVolunteers[slotIndex][locationIndex] = [firstVolunteer, bestPartner];
+          shiftCounts[firstVolunteer]++;
+          shiftCounts[bestPartner]++;
+          pairCounts[`${firstVolunteer}-${bestPartner}`]++;
+          pairCounts[`${bestPartner}-${firstVolunteer}`]++;
+        }
+      }
+    });
+    
+    // Second pass: Fill in any slots that couldn't be filled with availability constraint
+    slots.forEach((slot, slotIndex) => {
+      for (let locationIndex = 0; locationIndex < numLocations; locationIndex++) {
+        if (assignedVolunteers[slotIndex][locationIndex].length < 2) {
+          let sortedVolunteers = [...filteredVolunteers];
+          
+          // Randomize and sort by shift count
+          if (randomize) {
+            sortedVolunteers = shuffleArray(sortedVolunteers);
+          }
+          sortedVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
+          
+          // Remove volunteers already assigned to this slot
+          sortedVolunteers = sortedVolunteers.filter(v => 
+            !assignedVolunteers[slotIndex].some(locVols => locVols.includes(v))
+          );
+          
+          // Fill first position if needed
+          if (assignedVolunteers[slotIndex][locationIndex].length === 0 && sortedVolunteers.length > 0) {
+            const firstVolunteer = sortedVolunteers.shift();
+            assignedVolunteers[slotIndex][locationIndex].push(firstVolunteer);
+            shiftCounts[firstVolunteer]++;
+          }
+          
+          // Fill second position, ensuring it's different from the first
+          if (assignedVolunteers[slotIndex][locationIndex].length === 1) {
+            const firstVolunteer = assignedVolunteers[slotIndex][locationIndex][0];
+            const availableForSecond = sortedVolunteers.filter(v => v !== firstVolunteer);
+            
+            if (availableForSecond.length > 0) {
+              const secondVolunteer = availableForSecond[0];
+              assignedVolunteers[slotIndex][locationIndex].push(secondVolunteer);
+              shiftCounts[secondVolunteer]++;
+            } else if (sortedVolunteers.length > 0) {
+              // Last resort if really needed
+              for (const v of filteredVolunteers) {
+                if (v !== firstVolunteer && !assignedVolunteers[slotIndex][locationIndex].includes(v)) {
+                  assignedVolunteers[slotIndex][locationIndex].push(v);
+                  shiftCounts[v]++;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    return { assignments: assignedVolunteers, shiftCounts };
+  };
+  
+  // Create schedule with even workload and maximized variety (original function for single location)
+  const createSchedule = (volunteers, slots, randomize = false) => {
+    // Handle multiple locations if that option is selected
+    if (multipleLocations) {
+      return createMultiLocationSchedule(volunteers, slots, randomize);
+    }
+    
+    // Original single location code
     const filteredVolunteers = volunteers.filter(v => v.trim() !== '');
     
     // Track pairings for variety
@@ -384,11 +569,28 @@ const ScheduleBuilder = () => {
       const { assignments, shiftCounts } = createSchedule(internalVolunteers, slots, true);
       
       // Create final schedule
-      const newSchedule = slots.map((slot, index) => ({
-        ...slot,
-        volunteers: assignments[index],
-        shiftCounts
-      }));
+      let newSchedule;
+      
+      if (multipleLocations) {
+        // For multiple locations
+        newSchedule = slots.map((slot, index) => ({
+          ...slot,
+          volunteers: [], // Keep this for compatibility
+          locations: locationNames.map((name, locIndex) => ({
+            name,
+            volunteers: assignments[index][locIndex] || []
+          })),
+          shiftCounts
+        }));
+      } else {
+        // For single location
+        newSchedule = slots.map((slot, index) => ({
+          ...slot,
+          volunteers: assignments[index],
+          locations: [], // Keep this for compatibility
+          shiftCounts
+        }));
+      }
       
       setSchedule(newSchedule);
       setConflicts([]);
@@ -400,8 +602,9 @@ const ScheduleBuilder = () => {
   const generateSchedule = () => {
     const filteredVolunteers = volunteers.filter(v => v.trim() !== '');
     
-    if (filteredVolunteers.length < 2) {
-      alert('Please add at least 2 volunteers');
+    const minVolunteers = multipleLocations ? 4 : 2;
+    if (filteredVolunteers.length < minVolunteers) {
+      alert(`Please add at least ${minVolunteers} volunteers`);
       return;
     }
     
@@ -439,11 +642,28 @@ const ScheduleBuilder = () => {
       const { assignments, shiftCounts } = createSchedule(internalVolunteers, slots, false);
       
       // Create final schedule
-      const newSchedule = slots.map((slot, index) => ({
-        ...slot,
-        volunteers: assignments[index],
-        shiftCounts
-      }));
+      let newSchedule;
+      
+      if (multipleLocations) {
+        // For multiple locations
+        newSchedule = slots.map((slot, index) => ({
+          ...slot,
+          volunteers: [], // Keep this for compatibility
+          locations: locationNames.map((name, locIndex) => ({
+            name,
+            volunteers: assignments[index][locIndex] || []
+          })),
+          shiftCounts
+        }));
+      } else {
+        // For single location
+        newSchedule = slots.map((slot, index) => ({
+          ...slot,
+          volunteers: assignments[index],
+          locations: [], // Keep this for compatibility
+          shiftCounts
+        }));
+      }
       
       setSchedule(newSchedule);
       setConflicts([]);
@@ -475,27 +695,70 @@ const ScheduleBuilder = () => {
   };
   
   // Update a volunteer in the schedule
-  const updateScheduleVolunteer = (slotIndex, volunteerIndex, newVolunteer) => {
+  const updateScheduleVolunteer = (slotIndex, volunteerIndex, newVolunteer, locationIndex = null) => {
     const updatedSchedule = [...schedule];
-    const currentSlot = updatedSchedule[slotIndex];
     
-    // Check if this would create a duplicate in the same shift
-    const otherIndex = volunteerIndex === 0 ? 1 : 0;
-    if (newVolunteer && newVolunteer === currentSlot.volunteers[otherIndex]) {
-      setDuplicateError({
-        slotIndex,
-        message: `${volunteerMap[newVolunteer] || newVolunteer} is already assigned to this shift`
-      });
-      return; // Don't update if it would create a duplicate
+    if (multipleLocations && locationIndex !== null) {
+      // For multiple locations
+      const currentSlot = updatedSchedule[slotIndex];
+      const currentLocation = currentSlot.locations[locationIndex];
+      
+      // Check if this would create a duplicate in the same shift at this location
+      const otherIndex = volunteerIndex === 0 ? 1 : 0;
+      if (newVolunteer && newVolunteer === currentLocation.volunteers[otherIndex]) {
+        setDuplicateError({
+          slotIndex,
+          locationIndex,
+          message: `${volunteerMap[newVolunteer] || newVolunteer} is already assigned to this shift`
+        });
+        return; // Don't update if it would create a duplicate
+      }
+      
+      // Check if volunteer is already assigned to another location in this slot
+      const isAssignedElsewhere = currentSlot.locations.some((loc, idx) => 
+        idx !== locationIndex && loc.volunteers.includes(newVolunteer)
+      );
+      
+      if (isAssignedElsewhere) {
+        setDuplicateError({
+          slotIndex,
+          locationIndex,
+          message: `${volunteerMap[newVolunteer] || newVolunteer} is already assigned to another location in this time slot`
+        });
+        return;
+      }
+      
+      // Clear any existing duplicate error
+      if (duplicateError && 
+          duplicateError.slotIndex === slotIndex && 
+          duplicateError.locationIndex === locationIndex) {
+        setDuplicateError(null);
+      }
+      
+      // Update the volunteer
+      updatedSchedule[slotIndex].locations[locationIndex].volunteers[volunteerIndex] = newVolunteer;
+    } else {
+      // For single location - original logic
+      const currentSlot = updatedSchedule[slotIndex];
+      
+      // Check if this would create a duplicate in the same shift
+      const otherIndex = volunteerIndex === 0 ? 1 : 0;
+      if (newVolunteer && newVolunteer === currentSlot.volunteers[otherIndex]) {
+        setDuplicateError({
+          slotIndex,
+          message: `${volunteerMap[newVolunteer] || newVolunteer} is already assigned to this shift`
+        });
+        return; // Don't update if it would create a duplicate
+      }
+      
+      // Clear any existing duplicate error
+      if (duplicateError && duplicateError.slotIndex === slotIndex) {
+        setDuplicateError(null);
+      }
+      
+      // Update the volunteer
+      updatedSchedule[slotIndex].volunteers[volunteerIndex] = newVolunteer;
     }
-    
-    // Clear any existing duplicate error
-    if (duplicateError && duplicateError.slotIndex === slotIndex) {
-      setDuplicateError(null);
-    }
-    
-    // Update the volunteer
-    updatedSchedule[slotIndex].volunteers[volunteerIndex] = newVolunteer;
     
     // Update shift counts
     const shiftCounts = {};
@@ -504,11 +767,23 @@ const ScheduleBuilder = () => {
     });
     
     updatedSchedule.forEach(slot => {
-      slot.volunteers.forEach(v => {
-        if (v && shiftCounts[v] !== undefined) {
-          shiftCounts[v]++;
-        }
-      });
+      if (multipleLocations) {
+        // Count shifts across all locations
+        slot.locations.forEach(location => {
+          location.volunteers.forEach(v => {
+            if (v && shiftCounts[v] !== undefined) {
+              shiftCounts[v]++;
+            }
+          });
+        });
+      } else {
+        // Original counting logic
+        slot.volunteers.forEach(v => {
+          if (v && shiftCounts[v] !== undefined) {
+            shiftCounts[v]++;
+          }
+        });
+      }
     });
     
     // Update the schedule with new shift counts
@@ -528,14 +803,35 @@ const ScheduleBuilder = () => {
       if (index > 0) {
         const previousSlot = updatedSchedule[index - 1];
         
-        slot.volunteers.forEach(volunteer => {
-          if (previousSlot.volunteers.includes(volunteer)) {
-            newConflicts.push({
-              slotIndex: index,
-              volunteer: volunteer
+        if (multipleLocations) {
+          // For multiple locations
+          slot.locations.forEach((location, locIndex) => {
+            location.volunteers.forEach(volunteer => {
+              // Check if volunteer was in any location in the previous slot
+              const wasInPreviousSlot = previousSlot.locations.some(
+                prevLoc => prevLoc.volunteers.includes(volunteer)
+              );
+              
+              if (wasInPreviousSlot) {
+                newConflicts.push({
+                  slotIndex: index,
+                  locationIndex: locIndex,
+                  volunteer: volunteer
+                });
+              }
             });
-          }
-        });
+          });
+        } else {
+          // Original conflict checking
+          slot.volunteers.forEach(volunteer => {
+            if (previousSlot.volunteers.includes(volunteer)) {
+              newConflicts.push({
+                slotIndex: index,
+                volunteer: volunteer
+              });
+            }
+          });
+        }
       }
     });
     
@@ -585,7 +881,7 @@ const ScheduleBuilder = () => {
         headerHeight: 60,
         rowHeight: 30,
         timeColumnWidth: 120,
-        volunteerColumnWidth: 300,
+        volunteerColumnWidth: multipleLocations ? 260 : 300, // Adjust width for multiple locations
         legendHeight: 40,
         cornerRadius: 2,
         borderColor: darkMode ? '#4a5568' : '#e2e8f0',
@@ -599,7 +895,11 @@ const ScheduleBuilder = () => {
       };
       
       // Calculate canvas dimensions
-      const width = config.timeColumnWidth + config.volunteerColumnWidth + config.padding * 2;
+      const totalVolunteerWidth = multipleLocations 
+        ? config.volunteerColumnWidth * locationNames.length 
+        : config.volunteerColumnWidth;
+      
+      const width = config.timeColumnWidth + totalVolunteerWidth + config.padding * 2;
       const height = config.headerHeight + ((schedule.length + 1) * config.rowHeight) + config.legendHeight + config.padding * 2;
       
       // Set canvas size with pixel ratio for high resolution
@@ -667,11 +967,29 @@ const ScheduleBuilder = () => {
       // Outer border
       ctx.strokeRect(config.padding, tableTop, tableWidth, tableHeight);
       
-      // Vertical divider for columns - draw AFTER the row backgrounds
-      ctx.beginPath();
-      ctx.moveTo(config.padding + config.timeColumnWidth, tableTop);
-      ctx.lineTo(config.padding + config.timeColumnWidth, tableTop + tableHeight);
-      ctx.stroke();
+      // Vertical dividers for columns - draw AFTER the row backgrounds
+      if (multipleLocations) {
+        // Divider between time and first location
+        ctx.beginPath();
+        ctx.moveTo(config.padding + config.timeColumnWidth, tableTop);
+        ctx.lineTo(config.padding + config.timeColumnWidth, tableTop + tableHeight);
+        ctx.stroke();
+        
+        // Dividers between locations
+        for (let i = 1; i < locationNames.length; i++) {
+          const dividerX = config.padding + config.timeColumnWidth + (i * config.volunteerColumnWidth);
+          ctx.beginPath();
+          ctx.moveTo(dividerX, tableTop);
+          ctx.lineTo(dividerX, tableTop + tableHeight);
+          ctx.stroke();
+        }
+      } else {
+        // Original single divider
+        ctx.beginPath();
+        ctx.moveTo(config.padding + config.timeColumnWidth, tableTop);
+        ctx.lineTo(config.padding + config.timeColumnWidth, tableTop + tableHeight);
+        ctx.stroke();
+      }
       
       // Horizontal grid lines - draw AFTER the row backgrounds
       for (let i = 1; i <= schedule.length + 1; i++) {
@@ -687,9 +1005,19 @@ const ScheduleBuilder = () => {
       ctx.textAlign = 'left';
       ctx.fillText('Time', config.padding + 10, tableTop + config.rowHeight / 2 + 5);
       
-      ctx.textAlign = 'center';
-      ctx.fillText('Volunteers', config.padding + config.timeColumnWidth + config.volunteerColumnWidth / 2, 
+      if (multipleLocations) {
+        // Location headers
+        locationNames.forEach((name, locIndex) => {
+          const locX = config.padding + config.timeColumnWidth + (locIndex * config.volunteerColumnWidth);
+          ctx.textAlign = 'center';
+          ctx.fillText(name, locX + config.volunteerColumnWidth / 2, tableTop + config.rowHeight / 2 + 5);
+        });
+      } else {
+        // Original volunteers header
+        ctx.textAlign = 'center';
+        ctx.fillText('Volunteers', config.padding + config.timeColumnWidth + config.volunteerColumnWidth / 2, 
                   tableTop + config.rowHeight / 2 + 5);
+      }
       
       // Draw schedule rows (data rows)
       schedule.forEach((slot, index) => {
@@ -702,42 +1030,86 @@ const ScheduleBuilder = () => {
         ctx.textAlign = 'left';
         ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 + 5);
         
-        // Draw volunteer boxes
-        const volunteerWidth = config.volunteerColumnWidth / 2 - 8;
-        slot.volunteers.forEach((volunteerId, vIndex) => {
-          if (!volunteerId) return;
-          
-          const displayName = volunteerMap[volunteerId] || volunteerId;
-          const vx = config.padding + config.timeColumnWidth + 4 + vIndex * (volunteerWidth + 8);
-          const vy = y + 5;
-          const vHeight = config.rowHeight - 10;
-          
-          // Volunteer background - draw a rounded rectangle
-          const radius = config.cornerRadius;
-          ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
-          
-          // Draw rounded rectangle
-          ctx.beginPath();
-          ctx.moveTo(vx + radius, vy);
-          ctx.lineTo(vx + volunteerWidth - radius, vy);
-          ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
-          ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
-          ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
-          ctx.lineTo(vx + radius, vy + vHeight);
-          ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
-          ctx.lineTo(vx, vy + radius);
-          ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
-          ctx.closePath();
-          ctx.fill();
-          
-          // Volunteer text
-          ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
-          ctx.font = `11px ${config.fontFamily}`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
-          ctx.textBaseline = 'alphabetic';
-        });
+        if (multipleLocations) {
+          // Draw volunteer boxes for each location
+          slot.locations.forEach((location, locIndex) => {
+            const locX = config.padding + config.timeColumnWidth + (locIndex * config.volunteerColumnWidth);
+            
+            // Draw volunteer boxes
+            const volunteerWidth = config.volunteerColumnWidth / 2 - 8;
+            location.volunteers.forEach((volunteerId, vIndex) => {
+              if (!volunteerId) return;
+              
+              const displayName = volunteerMap[volunteerId] || volunteerId;
+              const vx = locX + 4 + vIndex * (volunteerWidth + 8);
+              const vy = y + 5;
+              const vHeight = config.rowHeight - 10;
+              
+              // Volunteer background - draw a rounded rectangle
+              const radius = config.cornerRadius;
+              ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
+              
+              // Draw rounded rectangle
+              ctx.beginPath();
+              ctx.moveTo(vx + radius, vy);
+              ctx.lineTo(vx + volunteerWidth - radius, vy);
+              ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
+              ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
+              ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
+              ctx.lineTo(vx + radius, vy + vHeight);
+              ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
+              ctx.lineTo(vx, vy + radius);
+              ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
+              ctx.closePath();
+              ctx.fill();
+              
+              // Volunteer text
+              ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
+              ctx.font = `11px ${config.fontFamily}`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+              ctx.textBaseline = 'alphabetic';
+            });
+          });
+        } else {
+          // Original volunteer rendering for single location
+          const volunteerWidth = config.volunteerColumnWidth / 2 - 8;
+          slot.volunteers.forEach((volunteerId, vIndex) => {
+            if (!volunteerId) return;
+            
+            const displayName = volunteerMap[volunteerId] || volunteerId;
+            const vx = config.padding + config.timeColumnWidth + 4 + vIndex * (volunteerWidth + 8);
+            const vy = y + 5;
+            const vHeight = config.rowHeight - 10;
+            
+            // Volunteer background - draw a rounded rectangle
+            const radius = config.cornerRadius;
+            ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
+            
+            // Draw rounded rectangle
+            ctx.beginPath();
+            ctx.moveTo(vx + radius, vy);
+            ctx.lineTo(vx + volunteerWidth - radius, vy);
+            ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
+            ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
+            ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
+            ctx.lineTo(vx + radius, vy + vHeight);
+            ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
+            ctx.lineTo(vx, vy + radius);
+            ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Volunteer text
+            ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
+            ctx.font = `11px ${config.fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+            ctx.textBaseline = 'alphabetic';
+          });
+        }
       });
       
       // Draw legend
@@ -905,7 +1277,7 @@ const ScheduleBuilder = () => {
         headerHeight: 60,
         rowHeight: 30,
         timeColumnWidth: 120,
-        volunteerColumnWidth: 300,
+        volunteerColumnWidth: multipleLocations ? 260 : 300, // Adjust for multiple locations
         legendHeight: 40,
         cornerRadius: 2,
         borderColor: darkMode ? '#4a5568' : '#e2e8f0',
@@ -919,7 +1291,11 @@ const ScheduleBuilder = () => {
       };
       
       // Calculate canvas dimensions
-      const width = config.timeColumnWidth + config.volunteerColumnWidth + config.padding * 2;
+      const totalVolunteerWidth = multipleLocations 
+        ? config.volunteerColumnWidth * locationNames.length 
+        : config.volunteerColumnWidth;
+      
+      const width = config.timeColumnWidth + totalVolunteerWidth + config.padding * 2;
       const height = config.headerHeight + ((schedule.length + 1) * config.rowHeight) + config.legendHeight + config.padding * 2;
       
       // Set canvas size with pixel ratio for high resolution
@@ -987,11 +1363,29 @@ const ScheduleBuilder = () => {
       // Outer border
       ctx.strokeRect(config.padding, tableTop, tableWidth, tableHeight);
       
-      // Vertical divider for columns - draw AFTER the row backgrounds
-      ctx.beginPath();
-      ctx.moveTo(config.padding + config.timeColumnWidth, tableTop);
-      ctx.lineTo(config.padding + config.timeColumnWidth, tableTop + tableHeight);
-      ctx.stroke();
+      // Vertical dividers for columns - draw AFTER the row backgrounds
+      if (multipleLocations) {
+        // Divider between time and first location
+        ctx.beginPath();
+        ctx.moveTo(config.padding + config.timeColumnWidth, tableTop);
+        ctx.lineTo(config.padding + config.timeColumnWidth, tableTop + tableHeight);
+        ctx.stroke();
+        
+        // Dividers between locations
+        for (let i = 1; i < locationNames.length; i++) {
+          const dividerX = config.padding + config.timeColumnWidth + (i * config.volunteerColumnWidth);
+          ctx.beginPath();
+          ctx.moveTo(dividerX, tableTop);
+          ctx.lineTo(dividerX, tableTop + tableHeight);
+          ctx.stroke();
+        }
+      } else {
+        // Original single divider
+        ctx.beginPath();
+        ctx.moveTo(config.padding + config.timeColumnWidth, tableTop);
+        ctx.lineTo(config.padding + config.timeColumnWidth, tableTop + tableHeight);
+        ctx.stroke();
+      }
       
       // Horizontal grid lines - draw AFTER the row backgrounds
       for (let i = 1; i <= schedule.length + 1; i++) {
@@ -1007,9 +1401,19 @@ const ScheduleBuilder = () => {
       ctx.textAlign = 'left';
       ctx.fillText('Time', config.padding + 10, tableTop + config.rowHeight / 2 + 5);
       
-      ctx.textAlign = 'center';
-      ctx.fillText('Volunteers', config.padding + config.timeColumnWidth + config.volunteerColumnWidth / 2, 
+      if (multipleLocations) {
+        // Location headers
+        locationNames.forEach((name, locIndex) => {
+          const locX = config.padding + config.timeColumnWidth + (locIndex * config.volunteerColumnWidth);
+          ctx.textAlign = 'center';
+          ctx.fillText(name, locX + config.volunteerColumnWidth / 2, tableTop + config.rowHeight / 2 + 5);
+        });
+      } else {
+        // Original volunteers header
+        ctx.textAlign = 'center';
+        ctx.fillText('Volunteers', config.padding + config.timeColumnWidth + config.volunteerColumnWidth / 2, 
                   tableTop + config.rowHeight / 2 + 5);
+      }
       
       // Draw schedule rows (data rows)
       schedule.forEach((slot, index) => {
@@ -1022,42 +1426,86 @@ const ScheduleBuilder = () => {
         ctx.textAlign = 'left';
         ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 + 5);
         
-        // Draw volunteer boxes
-        const volunteerWidth = config.volunteerColumnWidth / 2 - 8;
-        slot.volunteers.forEach((volunteerId, vIndex) => {
-          if (!volunteerId) return;
-          
-          const displayName = volunteerMap[volunteerId] || volunteerId;
-          const vx = config.padding + config.timeColumnWidth + 4 + vIndex * (volunteerWidth + 8);
-          const vy = y + 5;
-          const vHeight = config.rowHeight - 10;
-          
-          // Volunteer background - draw a rounded rectangle
-          const radius = config.cornerRadius;
-          ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
-          
-          // Draw rounded rectangle
-          ctx.beginPath();
-          ctx.moveTo(vx + radius, vy);
-          ctx.lineTo(vx + volunteerWidth - radius, vy);
-          ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
-          ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
-          ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
-          ctx.lineTo(vx + radius, vy + vHeight);
-          ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
-          ctx.lineTo(vx, vy + radius);
-          ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
-          ctx.closePath();
-          ctx.fill();
-          
-          // Volunteer text
-          ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
-          ctx.font = `11px ${config.fontFamily}`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
-          ctx.textBaseline = 'alphabetic';
-        });
+        if (multipleLocations) {
+          // Draw volunteer boxes for each location
+          slot.locations.forEach((location, locIndex) => {
+            const locX = config.padding + config.timeColumnWidth + (locIndex * config.volunteerColumnWidth);
+            
+            // Draw volunteer boxes
+            const volunteerWidth = config.volunteerColumnWidth / 2 - 8;
+            location.volunteers.forEach((volunteerId, vIndex) => {
+              if (!volunteerId) return;
+              
+              const displayName = volunteerMap[volunteerId] || volunteerId;
+              const vx = locX + 4 + vIndex * (volunteerWidth + 8);
+              const vy = y + 5;
+              const vHeight = config.rowHeight - 10;
+              
+              // Volunteer background - draw a rounded rectangle
+              const radius = config.cornerRadius;
+              ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
+              
+              // Draw rounded rectangle
+              ctx.beginPath();
+              ctx.moveTo(vx + radius, vy);
+              ctx.lineTo(vx + volunteerWidth - radius, vy);
+              ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
+              ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
+              ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
+              ctx.lineTo(vx + radius, vy + vHeight);
+              ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
+              ctx.lineTo(vx, vy + radius);
+              ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
+              ctx.closePath();
+              ctx.fill();
+              
+              // Volunteer text
+              ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
+              ctx.font = `11px ${config.fontFamily}`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+              ctx.textBaseline = 'alphabetic';
+            });
+          });
+        } else {
+          // Original volunteer rendering for single location
+          const volunteerWidth = config.volunteerColumnWidth / 2 - 8;
+          slot.volunteers.forEach((volunteerId, vIndex) => {
+            if (!volunteerId) return;
+            
+            const displayName = volunteerMap[volunteerId] || volunteerId;
+            const vx = config.padding + config.timeColumnWidth + 4 + vIndex * (volunteerWidth + 8);
+            const vy = y + 5;
+            const vHeight = config.rowHeight - 10;
+            
+            // Volunteer background - draw a rounded rectangle
+            const radius = config.cornerRadius;
+            ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
+            
+            // Draw rounded rectangle
+            ctx.beginPath();
+            ctx.moveTo(vx + radius, vy);
+            ctx.lineTo(vx + volunteerWidth - radius, vy);
+            ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
+            ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
+            ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
+            ctx.lineTo(vx + radius, vy + vHeight);
+            ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
+            ctx.lineTo(vx, vy + radius);
+            ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Volunteer text
+            ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
+            ctx.font = `11px ${config.fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+            ctx.textBaseline = 'alphabetic';
+          });
+        }
       });
       
       // Draw legend
@@ -1201,15 +1649,32 @@ const ScheduleBuilder = () => {
                   }}>
                     Time
                   </th>
-                  <th style={{ 
-                    border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
-                    padding: '4px 4px',
-                    textAlign: 'center',
-                    fontWeight: '500',
-                    color: darkMode ? '#e2e8f0' : '#1a202c'
-                  }}>
-                    Volunteers
-                  </th>
+                  
+                  {multipleLocations ? (
+                    // Multiple locations table headers
+                    locationNames.map((name, index) => (
+                      <th key={index} style={{ 
+                        border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                        padding: '4px 4px',
+                        textAlign: 'center',
+                        fontWeight: '500',
+                        color: darkMode ? '#e2e8f0' : '#1a202c'
+                      }}>
+                        {name}
+                      </th>
+                    ))
+                  ) : (
+                    // Single location header
+                    <th style={{ 
+                      border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                      padding: '4px 4px',
+                      textAlign: 'center',
+                      fontWeight: '500',
+                      color: darkMode ? '#e2e8f0' : '#1a202c'
+                    }}>
+                      Volunteers
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -1228,33 +1693,68 @@ const ScheduleBuilder = () => {
                     }}>
                       {slot.compactDisplay}
                     </td>
-                    <td style={{ 
-                      border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
-                      padding: '4px 2px',
-                      textAlign: 'center'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
-                        {slot.volunteers.map((volunteerId, vIndex) => (
-                          <div 
-                            key={vIndex}
-                            style={{ 
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '45%',
-                              height: '22px',
-                              backgroundColor: colors[volunteerId]?.bg || 'transparent',
-                              color: colors[volunteerId]?.text || 'inherit',
-                              borderRadius: '2px',
-                              fontSize: '11px',
-                              margin: '0 2px'
-                            }}
-                          >
-                            {volunteerMap[volunteerId] || volunteerId}
+                    
+                    {multipleLocations ? (
+                      // Multiple locations cells
+                      slot.locations.map((location, locIndex) => (
+                        <td key={locIndex} style={{ 
+                          border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                          padding: '4px 2px',
+                          textAlign: 'center'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
+                            {location.volunteers.map((volunteerId, vIndex) => (
+                              <div 
+                                key={vIndex}
+                                style={{ 
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '45%',
+                                  height: '22px',
+                                  backgroundColor: colors[volunteerId]?.bg || 'transparent',
+                                  color: colors[volunteerId]?.text || 'inherit',
+                                  borderRadius: '2px',
+                                  fontSize: '11px',
+                                  margin: '0 2px'
+                                }}
+                              >
+                                {volunteerMap[volunteerId] || volunteerId}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </td>
+                        </td>
+                      ))
+                    ) : (
+                      // Single location cell
+                      <td style={{ 
+                        border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                        padding: '4px 2px',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
+                          {slot.volunteers.map((volunteerId, vIndex) => (
+                            <div 
+                              key={vIndex}
+                              style={{ 
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '45%',
+                                height: '22px',
+                                backgroundColor: colors[volunteerId]?.bg || 'transparent',
+                                color: colors[volunteerId]?.text || 'inherit',
+                                borderRadius: '2px',
+                                fontSize: '11px',
+                                margin: '0 2px'
+                              }}
+                            >
+                              {volunteerMap[volunteerId] || volunteerId}
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -1478,6 +1978,46 @@ const ScheduleBuilder = () => {
                 />
               </div>
               
+              {/* Multiple Locations Toggle */}
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="multipleLocations"
+                  checked={multipleLocations}
+                  onChange={handleMultipleLocationsChange}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label
+                  htmlFor="multipleLocations"
+                  className={`ml-2 block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                >
+                  Multiple Locations
+                </label>
+                <span className={`ml-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  (e.g. Two cart locations w/ one keyman)
+                </span>
+              </div>
+              
+              {/* Location Names when Multiple Locations is checked */}
+              {multipleLocations && (
+                <div className="space-y-3 pl-6 border-l-2 border-indigo-200 dark:border-indigo-800">
+                  {locationNames.map((name, index) => (
+                    <div key={index}>
+                      <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                        Location {index + 1} Name
+                      </label>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => handleLocationNameChange(index, e.target.value)}
+                        placeholder={`Location ${index + 1}`}
+                        className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              
               {/* Date */}
               <div>
                 <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
@@ -1563,7 +2103,9 @@ const ScheduleBuilder = () => {
               <div>
                 <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                   <Users className="inline-block mr-1 mb-0.5" size={16} />
-                  Volunteers
+                  Volunteers {multipleLocations && <span className="text-xs font-normal ml-1">
+                    (min 4 required for multiple locations)
+                  </span>}
                 </label>
                 <div className="space-y-2">
                   {volunteers.map((volunteer, index) => (
@@ -1666,75 +2208,160 @@ const ScheduleBuilder = () => {
                   </div>
                 )}
                 
-                {/* Schedule Table - Improved for mobile */}
-                <div className={`overflow-x-auto overflow-y-auto max-h-80 sm:max-h-96 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} rounded-md`}>
-                  <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-                    <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} sticky top-0`}>
-                      <tr>
-                        <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                          Time
-                        </th>
-                        <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                          Vol 1
-                        </th>
-                        <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                          Vol 2
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className={`${darkMode ? 'bg-gray-800' : 'bg-white'} divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-                      {schedule.map((slot, slotIndex) => (
-                        <tr key={slotIndex} className={`${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
-                          <td className={`px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
-                            {slot.display12}
-                          </td>
-                          {[0, 1].map(volIndex => {
-                            const volunteerId = slot.volunteers[volIndex];
-                            const displayName = volunteerMap[volunteerId] || '';
-                            const hasConflict = conflicts.some(c => 
-                              c.slotIndex === slotIndex && c.volunteer === volunteerId
-                            );
-                            const hasDuplicateError = duplicateError && 
-                                                      duplicateError.slotIndex === slotIndex;
-                            
-                            return (
-                              <td key={volIndex} className="px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm">
-                                <div className={`rounded ${hasConflict ? (darkMode ? 'bg-red-900' : 'bg-red-50') : ''} ${hasDuplicateError ? (darkMode ? 'border border-red-700' : 'border border-red-300') : ''}`}>
-                                  <select
-                                    value={volunteerId || ''}
-                                    onChange={(e) => updateScheduleVolunteer(slotIndex, volIndex, e.target.value)}
-                                    className={`w-full py-1 px-2 rounded border-0 focus:ring-0 text-xs sm:text-sm ${darkMode ? 'bg-gray-700 text-white' : ''}`}
-                                    style={{
-                                      backgroundColor: volunteerId ? colors[volunteerId]?.bg : (darkMode ? '#1F2937' : 'transparent'),
-                                      color: volunteerId ? colors[volunteerId]?.text : 'inherit'
-                                    }}
-                                  >
-                                    <option value="" className={darkMode ? 'bg-gray-700' : ''}>Select volunteer</option>
-                                    {Object.keys(volunteerMap).map((id) => (
-                                      <option key={id} value={id} className={darkMode ? 'bg-gray-700' : ''}>{volunteerMap[id]}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                                
-                                {hasConflict && (
-                                  <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
-                                    Back-to-back shift
-                                  </div>
-                                )}
-                                
-                                {hasDuplicateError && volIndex === 0 && (
-                                  <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
-                                    {duplicateError.message}
-                                  </div>
-                                )}
-                              </td>
-                            );
-                          })}
+                {/* Schedule Table - Different display for multiple locations */}
+                {multipleLocations ? (
+                  // Multiple locations schedule table
+                  <div className={`overflow-x-auto overflow-y-auto max-h-80 sm:max-h-96 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} rounded-md`}>
+                    <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                      <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} sticky top-0`}>
+                        <tr>
+                          <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                            Time
+                          </th>
+                          {locationNames.map((name, locIndex) => (
+                            <th 
+                              key={locIndex} 
+                              colSpan={2}
+                              className={`px-2 sm:px-3 py-2 text-center text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}
+                            >
+                              {name}
+                            </th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className={`${darkMode ? 'bg-gray-800' : 'bg-white'} divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                        {schedule.map((slot, slotIndex) => (
+                          <tr key={slotIndex} className={`${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                            <td className={`px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                              {slot.display12}
+                            </td>
+                            
+                            {slot.locations.map((location, locIndex) => (
+                              // For each location, render 2 volunteer columns
+                              <React.Fragment key={locIndex}>
+                                {[0, 1].map(volIndex => {
+                                  const volunteerId = location.volunteers[volIndex];
+                                  const displayName = volunteerMap[volunteerId] || '';
+                                  const hasConflict = conflicts.some(c => 
+                                    c.slotIndex === slotIndex && 
+                                    c.locationIndex === locIndex && 
+                                    c.volunteer === volunteerId
+                                  );
+                                  const hasDuplicateError = duplicateError && 
+                                    duplicateError.slotIndex === slotIndex && 
+                                    duplicateError.locationIndex === locIndex;
+                                  
+                                  return (
+                                    <td key={volIndex} className="px-1 sm:px-2 py-2 whitespace-nowrap text-xs sm:text-sm">
+                                      <div className={`rounded ${hasConflict ? (darkMode ? 'bg-red-900' : 'bg-red-50') : ''} ${hasDuplicateError ? (darkMode ? 'border border-red-700' : 'border border-red-300') : ''}`}>
+                                        <select
+                                          value={volunteerId || ''}
+                                          onChange={(e) => updateScheduleVolunteer(slotIndex, volIndex, e.target.value, locIndex)}
+                                          className={`w-full py-1 px-2 rounded border-0 focus:ring-0 text-xs sm:text-sm ${darkMode ? 'bg-gray-700 text-white' : ''}`}
+                                          style={{
+                                            backgroundColor: volunteerId ? colors[volunteerId]?.bg : (darkMode ? '#1F2937' : 'transparent'),
+                                            color: volunteerId ? colors[volunteerId]?.text : 'inherit'
+                                          }}
+                                        >
+                                          <option value="" className={darkMode ? 'bg-gray-700' : ''}>Select volunteer</option>
+                                          {Object.keys(volunteerMap).map((id) => (
+                                            <option key={id} value={id} className={darkMode ? 'bg-gray-700' : ''}>{volunteerMap[id]}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      
+                                      {hasConflict && (
+                                        <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
+                                          Back-to-back shift
+                                        </div>
+                                      )}
+                                      
+                                      {hasDuplicateError && volIndex === 0 && (
+                                        <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
+                                          {duplicateError.message}
+                                        </div>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </React.Fragment>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  // Original single location schedule table
+                  <div className={`overflow-x-auto overflow-y-auto max-h-80 sm:max-h-96 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} rounded-md`}>
+                    <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                      <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} sticky top-0`}>
+                        <tr>
+                          <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                            Time
+                          </th>
+                          <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                            Vol 1
+                          </th>
+                          <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
+                            Vol 2
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className={`${darkMode ? 'bg-gray-800' : 'bg-white'} divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                        {schedule.map((slot, slotIndex) => (
+                          <tr key={slotIndex} className={`${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                            <td className={`px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                              {slot.display12}
+                            </td>
+                            {[0, 1].map(volIndex => {
+                              const volunteerId = slot.volunteers[volIndex];
+                              const displayName = volunteerMap[volunteerId] || '';
+                              const hasConflict = conflicts.some(c => 
+                                c.slotIndex === slotIndex && c.volunteer === volunteerId
+                              );
+                              const hasDuplicateError = duplicateError && 
+                                                        duplicateError.slotIndex === slotIndex;
+                              
+                              return (
+                                <td key={volIndex} className="px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm">
+                                  <div className={`rounded ${hasConflict ? (darkMode ? 'bg-red-900' : 'bg-red-50') : ''} ${hasDuplicateError ? (darkMode ? 'border border-red-700' : 'border border-red-300') : ''}`}>
+                                    <select
+                                      value={volunteerId || ''}
+                                      onChange={(e) => updateScheduleVolunteer(slotIndex, volIndex, e.target.value)}
+                                      className={`w-full py-1 px-2 rounded border-0 focus:ring-0 text-xs sm:text-sm ${darkMode ? 'bg-gray-700 text-white' : ''}`}
+                                      style={{
+                                        backgroundColor: volunteerId ? colors[volunteerId]?.bg : (darkMode ? '#1F2937' : 'transparent'),
+                                        color: volunteerId ? colors[volunteerId]?.text : 'inherit'
+                                      }}
+                                    >
+                                      <option value="" className={darkMode ? 'bg-gray-700' : ''}>Select volunteer</option>
+                                      {Object.keys(volunteerMap).map((id) => (
+                                        <option key={id} value={id} className={darkMode ? 'bg-gray-700' : ''}>{volunteerMap[id]}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  
+                                  {hasConflict && (
+                                    <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
+                                      Back-to-back shift
+                                    </div>
+                                  )}
+                                  
+                                  {hasDuplicateError && volIndex === 0 && (
+                                    <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
+                                      {duplicateError.message}
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
                 
                 {/* Finished Button - Larger for better mobile touch target */}
                 <div className="mt-4 flex justify-center">
@@ -1760,7 +2387,7 @@ const ScheduleBuilder = () => {
       
       <footer className={`mt-6 py-4 border-t ${darkMode ? 'border-gray-800 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center text-center text-xs">
-          <div>v.1.1</div>
+          <div>v.1.3</div>
           <div className={`mt-1 sm:mt-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
             {schedulesGenerated.toLocaleString()} schedules made with this tool
           </div>
