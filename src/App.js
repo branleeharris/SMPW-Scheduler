@@ -2692,7 +2692,7 @@ const ScheduleBuilder = () => {
       
       <footer className={`mt-6 py-4 border-t ${darkMode ? 'border-gray-800 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center text-center text-xs">
-          <div>v.1.3.1</div>
+          <div>v.1.3.2</div>
           <div className={`mt-1 sm:mt-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
             {schedulesGenerated.toLocaleString()} schedules made with this tool
           </div>
