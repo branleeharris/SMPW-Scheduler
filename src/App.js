@@ -32,6 +32,28 @@ const ScheduleBuilder = () => {
   const [multipleLocations, setMultipleLocations] = useState(false);
   const [locationNames, setLocationNames] = useState(['Location 1', 'Location 2']);
   
+  // SMPW Easter Egg states
+  const [titleClickCount, setTitleClickCount] = useState(0);
+  const [lastTitleClickTime, setLastTitleClickTime] = useState(0);
+  const [smpwMode, setSmpwMode] = useState(false);
+  const [scripturalPoint, setScripturalPoint] = useState("");
+  const [showActivation, setShowActivation] = useState(false);
+  
+  // SMPW predefined locations
+  const smpwLocations = [
+    "Eastern Market",
+    "Rosa Parks",
+    "Campus Martius",
+    "Greektown",
+    "Grand Circus Park",
+    "Hart Plaza",
+    "Avalon Bakery",
+    "Corktown",
+    "Wayne State",
+    "Airport - Evans Terminal",
+    "Airport - McNamara Terminal"
+  ];
+  
   const scheduleRef = useRef(null);
   
   // Load global schedule count from Firebase
@@ -71,6 +93,28 @@ const ScheduleBuilder = () => {
       setColors(generateColorsForIds(internalVolunteers));
     }
   }, [darkMode, volunteerMap]);
+  
+  // Handle title click for Easter egg
+  const handleTitleClick = () => {
+    const currentTime = new Date().getTime();
+    
+    // Reset counter if too much time between clicks (1.5 seconds)
+    if (currentTime - lastTitleClickTime > 1500 && titleClickCount > 0) {
+      setTitleClickCount(0);
+    }
+    
+    const newCount = titleClickCount + 1;
+    setTitleClickCount(newCount);
+    setLastTitleClickTime(currentTime);
+    
+    // Activate SMPW mode on 10th click
+    if (newCount === 10) {
+      setSmpwMode(true);
+      setTitleClickCount(0);
+      setShowActivation(true);
+      setTimeout(() => setShowActivation(false), 2000);
+    }
+  };
   
   // Handle volunteer input change
   const handleVolunteerChange = (index, value) => {
@@ -114,7 +158,24 @@ const ScheduleBuilder = () => {
   
   // Toggle multiple locations
   const handleMultipleLocationsChange = (e) => {
-    setMultipleLocations(e.target.checked);
+    const isChecked = e.target.checked;
+    setMultipleLocations(isChecked);
+    
+    // Special behavior for SMPW mode
+    if (smpwMode && isChecked) {
+      // Set default location names for Eastern Market
+      setLocationNames(["Fisher / Russell", "Market/Winder"]);
+      
+      // Add more volunteer slots
+      if (volunteers.length < 9) {
+        const additionalSlots = 9 - volunteers.length;
+        const newVolunteers = [...volunteers];
+        for (let i = 0; i < additionalSlots; i++) {
+          newVolunteers.push('');
+        }
+        setVolunteers(newVolunteers);
+      }
+    }
   };
   
   // Add a new volunteer field
@@ -964,7 +1025,18 @@ const ScheduleBuilder = () => {
         : config.volunteerColumnWidth;
       
       const width = config.timeColumnWidth + totalVolunteerWidth + config.padding * 2;
-      const height = config.headerHeight + ((schedule.length + 1) * config.rowHeight) + config.legendHeight + config.padding * 2;
+      let height = config.headerHeight + ((schedule.length + 1) * config.rowHeight) + config.legendHeight + config.padding * 2;
+      
+      // Add space for scriptural point if in SMPW mode
+      let scripturalPointHeight = 0;
+      if (smpwMode && scripturalPoint) {
+        // Estimate height based on text length (rough estimate)
+        const textLength = scripturalPoint.length;
+        const charsPerLine = 50; // Approximate characters per line
+        const lines = Math.ceil(textLength / charsPerLine);
+        scripturalPointHeight = lines * 16 + 40; // 16px per line + padding
+        height += scripturalPointHeight;
+      }
       
       // Set canvas size with pixel ratio for high resolution
       canvas.width = width * config.pixelRatio;
@@ -1218,6 +1290,57 @@ const ScheduleBuilder = () => {
         
         legendX += legendWidth + 6;
       });
+      
+      // Draw scriptural point if in SMPW mode
+      if (smpwMode && scripturalPoint) {
+        const scriptureY = legendY + 30;
+        const scriptureWidth = width - config.padding * 2;
+        
+        // Draw scripture box background
+        ctx.fillStyle = darkMode ? '#2d3748' : '#f7fafc';
+        ctx.strokeStyle = config.borderColor;
+        ctx.lineWidth = 1;
+        
+        // Measure and wrap text
+        ctx.font = `12px ${config.fontFamily}`;
+        const maxWidth = scriptureWidth - 20;
+        const words = scripturalPoint.split(' ');
+        const lines = [];
+        let currentLine = '';
+        
+        // Break text into lines
+        words.forEach(word => {
+          const testLine = currentLine ? `${currentLine} ${word}` : word;
+          if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+          } else {
+            currentLine = testLine;
+          }
+        });
+        if (currentLine) lines.push(currentLine);
+        
+        // Calculate box height based on text
+        const lineHeight = 16;
+        const textHeight = lines.length * lineHeight;
+        const boxHeight = textHeight + 30;
+        
+        // Draw box
+        ctx.fillRect(config.padding, scriptureY, scriptureWidth, boxHeight);
+        ctx.strokeRect(config.padding, scriptureY, scriptureWidth, boxHeight);
+        
+        // Draw heading
+        ctx.fillStyle = config.textColor;
+        ctx.font = `bold 13px ${config.fontFamily}`;
+        ctx.textAlign = 'left';
+        ctx.fillText('Scriptural Discussion', config.padding + 10, scriptureY + 18);
+        
+        // Draw text content
+        ctx.font = `12px ${config.fontFamily}`;
+        lines.forEach((line, i) => {
+          ctx.fillText(line, config.padding + 10, scriptureY + 36 + (i * lineHeight));
+        });
+      }
       
       // Convert canvas to blob for sharing
       const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
@@ -1360,7 +1483,18 @@ const ScheduleBuilder = () => {
         : config.volunteerColumnWidth;
       
       const width = config.timeColumnWidth + totalVolunteerWidth + config.padding * 2;
-      const height = config.headerHeight + ((schedule.length + 1) * config.rowHeight) + config.legendHeight + config.padding * 2;
+      let height = config.headerHeight + ((schedule.length + 1) * config.rowHeight) + config.legendHeight + config.padding * 2;
+      
+      // Add space for scriptural point if in SMPW mode
+      let scripturalPointHeight = 0;
+      if (smpwMode && scripturalPoint) {
+        // Estimate height based on text length (rough estimate)
+        const textLength = scripturalPoint.length;
+        const charsPerLine = 50; // Approximate characters per line
+        const lines = Math.ceil(textLength / charsPerLine);
+        scripturalPointHeight = lines * 16 + 40; // 16px per line + padding
+        height += scripturalPointHeight;
+      }
       
       // Set canvas size with pixel ratio for high resolution
       canvas.width = width * config.pixelRatio;
@@ -1614,6 +1748,57 @@ const ScheduleBuilder = () => {
         
         legendX += legendWidth + 6;
       });
+      
+      // Draw scriptural point if in SMPW mode
+      if (smpwMode && scripturalPoint) {
+        const scriptureY = legendY + 30;
+        const scriptureWidth = width - config.padding * 2;
+        
+        // Draw scripture box background
+        ctx.fillStyle = darkMode ? '#2d3748' : '#f7fafc';
+        ctx.strokeStyle = config.borderColor;
+        ctx.lineWidth = 1;
+        
+        // Measure and wrap text
+        ctx.font = `12px ${config.fontFamily}`;
+        const maxWidth = scriptureWidth - 20;
+        const words = scripturalPoint.split(' ');
+        const lines = [];
+        let currentLine = '';
+        
+        // Break text into lines
+        words.forEach(word => {
+          const testLine = currentLine ? `${currentLine} ${word}` : word;
+          if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+          } else {
+            currentLine = testLine;
+          }
+        });
+        if (currentLine) lines.push(currentLine);
+        
+        // Calculate box height based on text
+        const lineHeight = 16;
+        const textHeight = lines.length * lineHeight;
+        const boxHeight = textHeight + 30;
+        
+        // Draw box
+        ctx.fillRect(config.padding, scriptureY, scriptureWidth, boxHeight);
+        ctx.strokeRect(config.padding, scriptureY, scriptureWidth, boxHeight);
+        
+        // Draw heading
+        ctx.fillStyle = config.textColor;
+        ctx.font = `bold 13px ${config.fontFamily}`;
+        ctx.textAlign = 'left';
+        ctx.fillText('Scriptural Discussion', config.padding + 10, scriptureY + 18);
+        
+        // Draw text content
+        ctx.font = `12px ${config.fontFamily}`;
+        lines.forEach((line, i) => {
+          ctx.fillText(line, config.padding + 10, scriptureY + 36 + (i * lineHeight));
+        });
+      }
       
       // Convert to image and download
       const image = canvas.toDataURL('image/png');
@@ -1848,6 +2033,18 @@ const ScheduleBuilder = () => {
                 ))}
               </div>
             </div>
+            
+            {/* Scriptural Point (only in SMPW mode) */}
+            {smpwMode && scripturalPoint && (
+              <div className={`mt-4 p-3 rounded-md ${darkMode ? 'bg-gray-700 border border-gray-600' : 'bg-gray-50 border border-gray-200'}`}>
+                <div className={`text-sm font-semibold mb-1 ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                  Scriptural Discussion
+                </div>
+                <div className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {scripturalPoint}
+                </div>
+              </div>
+            )}
           </div>
           
           {/* Share button with status indication */}
@@ -1991,13 +2188,25 @@ const ScheduleBuilder = () => {
   
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100'}`}>
+      {/* SMPW Mode Activation Animation */}
+      {showActivation && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-60">
+          <div className="bg-indigo-600 p-6 rounded-lg shadow-xl transform scale-100 animate-pulse">
+            <h2 className="text-xl font-bold text-white">SMPW Mode Activated!</h2>
+          </div>
+        </div>
+      )}
+      
       {/* Header with mobile improvements */}
       <header className={`bg-gradient-to-r ${darkMode ? 'from-indigo-900 to-purple-900' : 'from-indigo-600 to-purple-600'} py-4 px-4 text-white`}>
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row items-center justify-between">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-0 flex items-center">
+            <h1 
+              className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-0 flex items-center cursor-pointer"
+              onClick={handleTitleClick}
+            >
               <Calendar className="mr-2 hidden sm:inline" />
-              <span>Volunteer Schedule Builder</span>
+              <span>{smpwMode ? "SMPW Scheduler" : "Volunteer Schedule Builder"}</span>
             </h1>
             
             <div className="flex items-center space-x-2">
@@ -2033,14 +2242,28 @@ const ScheduleBuilder = () => {
                   <Building className="inline-block mr-1 mb-0.5" size={16} />
                   Location Name (Optional)
                 </label>
-                <input
-                  type="text"
-                  value={locationName}
-                  onChange={(e) => setLocationName(e.target.value)}
-                  placeholder="Enter location name"
-                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-                />
+                {smpwMode ? (
+                  <select
+                    value={locationName}
+                    onChange={(e) => setLocationName(e.target.value)}
+                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                  >
+                    <option value="">Select location (optional)</option>
+                    {smpwLocations.map((location, index) => (
+                      <option key={index} value={location}>{location}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={locationName}
+                    onChange={(e) => setLocationName(e.target.value)}
+                    placeholder="Enter location name"
+                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                  />
+                )}
               </div>
+              
               {/* Multiple Locations Toggle */}
               <div className="flex items-center">
                 <input
@@ -2054,15 +2277,17 @@ const ScheduleBuilder = () => {
                   htmlFor="multipleLocations"
                   className={`ml-2 block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
                 >
-                  Multiple Locations
+                  {smpwMode ? "Eastern Market Mode" : "Multiple Locations"}
                 </label>
                 <span className={`ml-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  (e.g. Two cart locations w/ one keyman)
+                  {smpwMode ? 
+                    "(Auto-configures Fisher/Russell and Market/Winder)" : 
+                    "(e.g. Two cart locations w/ one keyman)"}
                 </span>
               </div>
               
               {/* Location Names when Multiple Locations is checked */}
-              {multipleLocations && (
+              {multipleLocations && !smpwMode && (
                 <div className="space-y-3 pl-6 border-l-2 border-indigo-200 dark:border-indigo-800">
                   {locationNames.map((name, index) => (
                     <div key={index}>
@@ -2161,6 +2386,23 @@ const ScheduleBuilder = () => {
                   </div>
                 )}
               </div>
+              
+              {/* Scriptural Point (SMPW Mode only) */}
+              {smpwMode && (
+                <div>
+                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    <Info className="inline-block mr-1 mb-0.5" size={16} />
+                    Share your Scriptural Point (Optional)
+                  </label>
+                  <textarea
+                    value={scripturalPoint}
+                    onChange={(e) => setScripturalPoint(e.target.value)}
+                    placeholder="Enter a scriptural discussion point..."
+                    rows="3"
+                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                  />
+                </div>
+              )}
               
               {/* Volunteers - Improved spacing for mobile */}
               <div>
