@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Clock, Users, Calendar, ChevronDown, Plus, AlertTriangle, Camera, X, Smartphone, Download, Info, Shuffle, Building, Sun, Moon, Copy, Check, AlertCircle } from 'lucide-react';
+import { Clock, Users, Calendar, ChevronDown, Plus, AlertTriangle, Camera, X, Smartphone, Download, Info, Shuffle, Building, Sun, Moon, Copy, Check, AlertCircle, Volume2, VolumeX } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { incrementScheduleCounter, getScheduleCount } from './firebase';
 
@@ -38,6 +38,12 @@ const ScheduleBuilder = () => {
   const [smpwMode, setSmpwMode] = useState(false);
   const [scripturalPoint, setScripturalPoint] = useState("");
   const [showActivation, setShowActivation] = useState(false);
+  
+  // New audio Easter egg states
+  const [audioMode, setAudioMode] = useState(false);
+  const [audioMuted, setAudioMuted] = useState(false);
+  const audioRef = useRef(null);
+  const [activationMessage, setActivationMessage] = useState("");
   
   // SMPW predefined locations
   const smpwLocations = [
@@ -110,9 +116,25 @@ const ScheduleBuilder = () => {
     // Activate SMPW mode on 10th click
     if (newCount === 10) {
       setSmpwMode(true);
-      setTitleClickCount(0);
+      setActivationMessage("SMPW Mode Activated!");
       setShowActivation(true);
       setTimeout(() => setShowActivation(false), 2000);
+      // Don't reset counter here so we can count to 15
+    }
+    
+    // Activate audio on 25th click (5 more after SMPW mode)
+    if (newCount === 25) {
+      setAudioMode(true);
+      setActivationMessage("Volume up! :)");
+      setShowActivation(true);
+      setTimeout(() => setShowActivation(false), 2000);
+      setTitleClickCount(0); // Reset counter after 15 clicks
+      
+      // Play audio
+      if (audioRef.current && !audioMuted) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(e => console.error('Audio playback failed:', e));
+      }
     }
   };
   
@@ -2188,13 +2210,36 @@ const ScheduleBuilder = () => {
   
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100'}`}>
+      {/* Audio element for the Easter egg */}
+      <audio ref={audioRef} src="/peopleofallsorts.mp3" loop={audioMode && !audioMuted} />
+      
       {/* SMPW Mode Activation Animation */}
       {showActivation && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-60">
           <div className="bg-indigo-600 p-6 rounded-lg shadow-xl transform scale-100 animate-pulse">
-            <h2 className="text-xl font-bold text-white">SMPW Mode Activated!</h2>
+            <h2 className="text-xl font-bold text-white">{activationMessage}</h2>
           </div>
         </div>
+      )}
+      
+      {/* Mute button (appears only when audio is playing) */}
+      {audioMode && (
+        <button 
+          onClick={() => {
+            setAudioMuted(!audioMuted);
+            if (audioRef.current) {
+              if (audioMuted) {
+                audioRef.current.play().catch(e => console.error('Audio playback failed:', e));
+              } else {
+                audioRef.current.pause();
+              }
+            }
+          }}
+          className={`fixed bottom-4 right-4 p-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-100'} rounded-full shadow-lg z-50`}
+          aria-label={audioMuted ? "Unmute audio" : "Mute audio"}
+        >
+          {audioMuted ? <VolumeX size={20} className={darkMode ? 'text-white' : 'text-gray-800'} /> : <Volume2 size={20} className={darkMode ? 'text-white' : 'text-gray-800'} />}
+        </button>
       )}
       
       {/* Header with mobile improvements */}
