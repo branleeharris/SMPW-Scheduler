@@ -3,6 +3,9 @@ import { Clock, Users, Calendar, ChevronDown, Plus, AlertTriangle, Camera, X, Sm
 import html2canvas from 'html2canvas';
 import { incrementScheduleCounter, getScheduleCount } from './firebase';
 
+// Import 8-bit CSS
+import './8bit.css';
+
 const ScheduleBuilder = () => {
   const [volunteers, setVolunteers] = useState(['', '', '', '', '']);
   const [volunteerMap, setVolunteerMap] = useState({});  // Added volunteerMap
@@ -79,6 +82,55 @@ const ScheduleBuilder = () => {
       }
     }
   }, []);
+
+  // Apply 8-bit mode when audio is activated
+  useEffect(() => {
+    if (audioMode) {
+      // Load the 8-bit font
+      const fontLink = document.createElement('link');
+      fontLink.rel = 'stylesheet';
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap';
+      document.head.appendChild(fontLink);
+      
+      // Add 8-bit class to body
+      document.body.classList.add('eight-bit-mode');
+      
+      // Add scanline effect
+      const scanlineEffect = document.createElement('div');
+      scanlineEffect.className = 'scanline-effect';
+      document.body.appendChild(scanlineEffect);
+      
+      // Regenerate colors if schedule exists to apply 8-bit palette
+      if (schedule.length > 0) {
+        const internalVolunteers = Object.keys(volunteerMap);
+        setColors(generateColorsForIds(internalVolunteers, true));
+      }
+      
+      return () => {
+        // Clean up on unmount or when audioMode changes to false
+        document.body.classList.remove('eight-bit-mode');
+        const existingScanline = document.querySelector('.scanline-effect');
+        if (existingScanline) {
+          existingScanline.remove();
+        }
+      };
+    } else {
+      // Remove 8-bit class from body
+      document.body.classList.remove('eight-bit-mode');
+      
+      // Remove scanline effect
+      const existingScanline = document.querySelector('.scanline-effect');
+      if (existingScanline) {
+        existingScanline.remove();
+      }
+      
+      // Regenerate colors with normal palette if schedule exists
+      if (schedule.length > 0) {
+        const internalVolunteers = Object.keys(volunteerMap);
+        setColors(generateColorsForIds(internalVolunteers));
+      }
+    }
+  }, [audioMode]);
   
   // Toggle dark mode
   const toggleDarkMode = () => {
@@ -122,10 +174,10 @@ const ScheduleBuilder = () => {
       // Don't reset counter here so we can count to 15
     }
     
-    // Activate audio on 25th click (5 more after SMPW mode)
-    if (newCount === 25) {
+    // Activate audio on 30th click (5 more after SMPW mode)
+    if (newCount === 30) {
       setAudioMode(true);
-      setActivationMessage("Volume up! :)");
+      setActivationMessage("8-BIT MODE UNLOCKED!");
       setShowActivation(true);
       setTimeout(() => setShowActivation(false), 2000);
       setTitleClickCount(0); // Reset counter after 15 clicks
@@ -230,11 +282,25 @@ const ScheduleBuilder = () => {
   };
   
   // Generate colors for volunteer IDs
-  const generateColorsForIds = (volunteerIds) => {
+  const generateColorsForIds = (volunteerIds, use8BitPalette = false) => {
     const colorMap = {};
     
+    // 8-bit color palette (NES inspired)
+    const eightBitPalette = [
+      { bg: '#D03800', text: '#FCFCFC' }, // Red
+      { bg: '#007800', text: '#FCFCFC' }, // Green
+      { bg: '#0058F8', text: '#FCFCFC' }, // Blue
+      { bg: '#B800B8', text: '#FCFCFC' }, // Purple
+      { bg: '#F83800', text: '#FCFCFC' }, // Orange
+      { bg: '#008888', text: '#FCFCFC' }, // Teal
+      { bg: '#6844FC', text: '#FCFCFC' }, // Indigo
+      { bg: '#787878', text: '#FCFCFC' }, // Gray
+      { bg: '#F8B800', text: '#000000' }, // Yellow
+      { bg: '#00A844', text: '#FCFCFC' }  // Emerald
+    ];
+    
     // Different color palettes for light and dark mode
-    const colorPalette = darkMode ? [
+    const standardPalette = darkMode ? [
       { bg: '#1a365d', text: '#90cdf4' }, // Dark Blue
       { bg: '#5f370e', text: '#fbd38d' }, // Dark Orange
       { bg: '#1e4620', text: '#9ae6b4' }, // Dark Green
@@ -257,6 +323,9 @@ const ScheduleBuilder = () => {
       { bg: '#f0fdfa', text: '#059669' }, // Emerald
       { bg: '#fdf2f8', text: '#db2777' }  // Rose
     ];
+    
+    // Choose which palette to use
+    const colorPalette = use8BitPalette || audioMode ? eightBitPalette : standardPalette;
     
     volunteerIds.forEach((id, index) => {
       colorMap[id] = colorPalette[index % colorPalette.length];
@@ -770,7 +839,7 @@ const ScheduleBuilder = () => {
       setVolunteerMap(newVolunteerMap);
       
       // Generate colors - now using internal IDs
-      const colorMap = generateColorsForIds(internalVolunteers);
+      const colorMap = generateColorsForIds(internalVolunteers, audioMode);
       setColors(colorMap);
       
       // Get interval value - either the selected preset or custom value
@@ -1030,14 +1099,14 @@ const ScheduleBuilder = () => {
         timeColumnWidth: 120,
         volunteerColumnWidth: multipleLocations ? 260 : 300, // Adjust width for multiple locations
         legendHeight: 40,
-        cornerRadius: 2,
+        cornerRadius: audioMode ? 0 : 2, // No rounded corners in 8-bit mode
         borderColor: darkMode ? '#4a5568' : '#e2e8f0',
         headerBgColor: darkMode ? '#2d3748' : '#f7fafc',
         alternateRowColor: darkMode ? '#2d3748' : '#f7fafc',
         mainRowColor: darkMode ? '#1a202c' : '#ffffff',
         textColor: darkMode ? '#e2e8f0' : '#1a202c',
         mutedTextColor: darkMode ? '#a0aec0' : '#4a5568',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+        fontFamily: audioMode ? '"Press Start 2P", cursive' : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
         pixelRatio: 2 // For higher resolution
       };
       
@@ -1054,7 +1123,7 @@ const ScheduleBuilder = () => {
       if (smpwMode && scripturalPoint) {
         // Estimate height based on text length (rough estimate)
         const textLength = scripturalPoint.length;
-        const charsPerLine = 50; // Approximate characters per line
+        const charsPerLine = audioMode ? 30 : 50; // Fewer chars per line in 8-bit mode
         const lines = Math.ceil(textLength / charsPerLine);
         scripturalPointHeight = lines * 16 + 40; // 16px per line + padding
         height += scripturalPointHeight;
@@ -1069,23 +1138,33 @@ const ScheduleBuilder = () => {
       const ctx = canvas.getContext('2d');
       ctx.scale(config.pixelRatio, config.pixelRatio);
       
-      // Apply anti-aliasing
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+      // Apply anti-aliasing - disable for 8-bit mode
+      ctx.imageSmoothingEnabled = !audioMode;
+      if (!audioMode) {
+        ctx.imageSmoothingQuality = 'high';
+      }
       
       // Fill background
       ctx.fillStyle = darkMode ? '#1a202c' : '#ffffff';
       ctx.fillRect(0, 0, width, height);
       
+      // Add scanlines in 8-bit mode
+      if (audioMode) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        for (let i = 0; i < height; i += 2) {
+          ctx.fillRect(0, i, width, 1);
+        }
+      }
+      
       // Draw header
       ctx.fillStyle = darkMode ? '#ffffff' : '#1a202c';
-      ctx.font = `bold 16px ${config.fontFamily}`;
+      ctx.font = `${audioMode ? '' : 'bold '}${audioMode ? '12' : '16'}px ${config.fontFamily}`;
       ctx.textAlign = 'center';
       const displayTitle = locationName ? `${locationName} Schedule` : 'Schedule';
       ctx.fillText(displayTitle, width / 2, config.padding + 20);
       
       // Draw date/time
-      ctx.font = `12px ${config.fontFamily}`;
+      ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
       ctx.fillStyle = config.mutedTextColor;
       const dateStr = formatDate(timeRange.date);
       const timeStr = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
@@ -1120,7 +1199,7 @@ const ScheduleBuilder = () => {
       
       // Draw grid lines AFTER backgrounds so they're always visible
       ctx.strokeStyle = config.borderColor;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = audioMode ? 2 : 1; // Thicker borders in 8-bit mode
       
       // Outer border
       ctx.strokeRect(config.padding, tableTop, tableWidth, tableHeight);
@@ -1159,7 +1238,7 @@ const ScheduleBuilder = () => {
       
       // Draw header text
       ctx.fillStyle = config.textColor;
-      ctx.font = `500 12px ${config.fontFamily}`;
+      ctx.font = `${audioMode ? '8' : '500 12'}px ${config.fontFamily}`;
       ctx.textAlign = 'left';
       ctx.fillText('Time', config.padding + 10, tableTop + config.rowHeight / 2 + 5);
       
@@ -1184,7 +1263,7 @@ const ScheduleBuilder = () => {
         
         // Time text
         ctx.fillStyle = config.textColor;
-        ctx.font = `500 12px ${config.fontFamily}`;
+        ctx.font = `${audioMode ? '8' : '500 12'}px ${config.fontFamily}`;
         ctx.textAlign = 'left';
         ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 + 5);
         
@@ -1203,27 +1282,36 @@ const ScheduleBuilder = () => {
               const vy = y + 5;
               const vHeight = config.rowHeight - 10;
               
-              // Volunteer background - draw a rounded rectangle
+              // Volunteer background - draw a rounded rectangle or square in 8-bit mode
               const radius = config.cornerRadius;
               ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
               
-              // Draw rounded rectangle
-              ctx.beginPath();
-              ctx.moveTo(vx + radius, vy);
-              ctx.lineTo(vx + volunteerWidth - radius, vy);
-              ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
-              ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
-              ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
-              ctx.lineTo(vx + radius, vy + vHeight);
-              ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
-              ctx.lineTo(vx, vy + radius);
-              ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
-              ctx.closePath();
-              ctx.fill();
+              if (audioMode) {
+                // Square box for 8-bit mode
+                ctx.fillRect(vx, vy, volunteerWidth, vHeight);
+                // Draw border
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(vx, vy, volunteerWidth, vHeight);
+              } else {
+                // Draw rounded rectangle
+                ctx.beginPath();
+                ctx.moveTo(vx + radius, vy);
+                ctx.lineTo(vx + volunteerWidth - radius, vy);
+                ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
+                ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
+                ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
+                ctx.lineTo(vx + radius, vy + vHeight);
+                ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
+                ctx.lineTo(vx, vy + radius);
+                ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
+                ctx.closePath();
+                ctx.fill();
+              }
               
               // Volunteer text
               ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
-              ctx.font = `11px ${config.fontFamily}`;
+              ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
@@ -1241,27 +1329,36 @@ const ScheduleBuilder = () => {
             const vy = y + 5;
             const vHeight = config.rowHeight - 10;
             
-            // Volunteer background - draw a rounded rectangle
+            // Volunteer background
             const radius = config.cornerRadius;
             ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
             
-            // Draw rounded rectangle
-            ctx.beginPath();
-            ctx.moveTo(vx + radius, vy);
-            ctx.lineTo(vx + volunteerWidth - radius, vy);
-            ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
-            ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
-            ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
-            ctx.lineTo(vx + radius, vy + vHeight);
-            ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
-            ctx.lineTo(vx, vy + radius);
-            ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
-            ctx.closePath();
-            ctx.fill();
+            if (audioMode) {
+              // Square box for 8-bit mode
+              ctx.fillRect(vx, vy, volunteerWidth, vHeight);
+              // Draw border
+              ctx.strokeStyle = '#000000';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(vx, vy, volunteerWidth, vHeight);
+            } else {
+              // Draw rounded rectangle
+              ctx.beginPath();
+              ctx.moveTo(vx + radius, vy);
+              ctx.lineTo(vx + volunteerWidth - radius, vy);
+              ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
+              ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
+              ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
+              ctx.lineTo(vx + radius, vy + vHeight);
+              ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
+              ctx.lineTo(vx, vy + radius);
+              ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
+              ctx.closePath();
+              ctx.fill();
+            }
             
             // Volunteer text
             ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
-            ctx.font = `11px ${config.fontFamily}`;
+            ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
@@ -1278,7 +1375,7 @@ const ScheduleBuilder = () => {
       let legendX = config.padding;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = `11px ${config.fontFamily}`;
+      ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
       
       volunteers.forEach(volunteerId => {
         const count = shiftCounts[volunteerId];
@@ -1289,22 +1386,31 @@ const ScheduleBuilder = () => {
         const legendHeight = 18;
         const radius = config.cornerRadius;
         
-        // Background - draw a rounded rectangle
+        // Background
         ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
         
-        // Draw rounded rectangle
-        ctx.beginPath();
-        ctx.moveTo(legendX + radius, legendY);
-        ctx.lineTo(legendX + legendWidth - radius, legendY);
-        ctx.quadraticCurveTo(legendX + legendWidth, legendY, legendX + legendWidth, legendY + radius);
-        ctx.lineTo(legendX + legendWidth, legendY + legendHeight - radius);
-        ctx.quadraticCurveTo(legendX + legendWidth, legendY + legendHeight, legendX + legendWidth - radius, legendY + legendHeight);
-        ctx.lineTo(legendX + radius, legendY + legendHeight);
-        ctx.quadraticCurveTo(legendX, legendY + legendHeight, legendX, legendY + legendHeight - radius);
-        ctx.lineTo(legendX, legendY + radius);
-        ctx.quadraticCurveTo(legendX, legendY, legendX + radius, legendY);
-        ctx.closePath();
-        ctx.fill();
+        if (audioMode) {
+          // Square box for 8-bit mode
+          ctx.fillRect(legendX, legendY, legendWidth, legendHeight);
+          // Draw border
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(legendX, legendY, legendWidth, legendHeight);
+        } else {
+          // Draw rounded rectangle
+          ctx.beginPath();
+          ctx.moveTo(legendX + radius, legendY);
+          ctx.lineTo(legendX + legendWidth - radius, legendY);
+          ctx.quadraticCurveTo(legendX + legendWidth, legendY, legendX + legendWidth, legendY + radius);
+          ctx.lineTo(legendX + legendWidth, legendY + legendHeight - radius);
+          ctx.quadraticCurveTo(legendX + legendWidth, legendY + legendHeight, legendX + legendWidth - radius, legendY + legendHeight);
+          ctx.lineTo(legendX + radius, legendY + legendHeight);
+          ctx.quadraticCurveTo(legendX, legendY + legendHeight, legendX, legendY + legendHeight - radius);
+          ctx.lineTo(legendX, legendY + radius);
+          ctx.quadraticCurveTo(legendX, legendY, legendX + radius, legendY);
+          ctx.closePath();
+          ctx.fill();
+        }
         
         // Text
         ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
@@ -1321,10 +1427,20 @@ const ScheduleBuilder = () => {
         // Draw scripture box background
         ctx.fillStyle = darkMode ? '#2d3748' : '#f7fafc';
         ctx.strokeStyle = config.borderColor;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = audioMode ? 2 : 1;
+        
+        // Draw box
+        if (audioMode) {
+          // Square box for 8-bit mode
+          ctx.fillRect(config.padding, scriptureY, scriptureWidth, scripturalPointHeight);
+          ctx.strokeRect(config.padding, scriptureY, scriptureWidth, scripturalPointHeight);
+        } else {
+          ctx.fillRect(config.padding, scriptureY, scriptureWidth, scripturalPointHeight);
+          ctx.strokeRect(config.padding, scriptureY, scriptureWidth, scripturalPointHeight);
+        }
         
         // Measure and wrap text
-        ctx.font = `12px ${config.fontFamily}`;
+        ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
         const maxWidth = scriptureWidth - 20;
         const words = scripturalPoint.split(' ');
         const lines = [];
@@ -1342,23 +1458,15 @@ const ScheduleBuilder = () => {
         });
         if (currentLine) lines.push(currentLine);
         
-        // Calculate box height based on text
-        const lineHeight = 16;
-        const textHeight = lines.length * lineHeight;
-        const boxHeight = textHeight + 30;
-        
-        // Draw box
-        ctx.fillRect(config.padding, scriptureY, scriptureWidth, boxHeight);
-        ctx.strokeRect(config.padding, scriptureY, scriptureWidth, boxHeight);
-        
         // Draw heading
         ctx.fillStyle = config.textColor;
-        ctx.font = `bold 13px ${config.fontFamily}`;
+        ctx.font = `${audioMode ? 'bold 8' : 'bold 13'}px ${config.fontFamily}`;
         ctx.textAlign = 'left';
         ctx.fillText('Scriptural Discussion', config.padding + 10, scriptureY + 18);
         
         // Draw text content
-        ctx.font = `12px ${config.fontFamily}`;
+        ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
+        const lineHeight = audioMode ? 12 : 16;
         lines.forEach((line, i) => {
           ctx.fillText(line, config.padding + 10, scriptureY + 36 + (i * lineHeight));
         });
@@ -1488,14 +1596,14 @@ const ScheduleBuilder = () => {
         timeColumnWidth: 120,
         volunteerColumnWidth: multipleLocations ? 260 : 300, // Adjust for multiple locations
         legendHeight: 40,
-        cornerRadius: 2,
+        cornerRadius: audioMode ? 0 : 2, // No rounded corners in 8-bit mode
         borderColor: darkMode ? '#4a5568' : '#e2e8f0',
         headerBgColor: darkMode ? '#2d3748' : '#f7fafc',
         alternateRowColor: darkMode ? '#2d3748' : '#f7fafc',
         mainRowColor: darkMode ? '#1a202c' : '#ffffff',
         textColor: darkMode ? '#e2e8f0' : '#1a202c',
         mutedTextColor: darkMode ? '#a0aec0' : '#4a5568',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
+        fontFamily: audioMode ? '"Press Start 2P", cursive' : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
         pixelRatio: 2 // For higher resolution
       };
       
@@ -1512,7 +1620,7 @@ const ScheduleBuilder = () => {
       if (smpwMode && scripturalPoint) {
         // Estimate height based on text length (rough estimate)
         const textLength = scripturalPoint.length;
-        const charsPerLine = 50; // Approximate characters per line
+        const charsPerLine = audioMode ? 30 : 50; // Fewer chars per line in 8-bit mode
         const lines = Math.ceil(textLength / charsPerLine);
         scripturalPointHeight = lines * 16 + 40; // 16px per line + padding
         height += scripturalPointHeight;
@@ -1527,23 +1635,33 @@ const ScheduleBuilder = () => {
       const ctx = canvas.getContext('2d');
       ctx.scale(config.pixelRatio, config.pixelRatio);
       
-      // Apply anti-aliasing
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+      // Apply anti-aliasing - disable for 8-bit mode
+      ctx.imageSmoothingEnabled = !audioMode;
+      if (!audioMode) {
+        ctx.imageSmoothingQuality = 'high';
+      }
       
       // Fill background
       ctx.fillStyle = darkMode ? '#1a202c' : '#ffffff';
       ctx.fillRect(0, 0, width, height);
       
+      // Add scanlines in 8-bit mode
+      if (audioMode) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        for (let i = 0; i < height; i += 2) {
+          ctx.fillRect(0, i, width, 1);
+        }
+      }
+      
       // Draw header
       ctx.fillStyle = darkMode ? '#ffffff' : '#1a202c';
-      ctx.font = `bold 16px ${config.fontFamily}`;
+      ctx.font = `${audioMode ? '' : 'bold '}${audioMode ? '12' : '16'}px ${config.fontFamily}`;
       ctx.textAlign = 'center';
       const displayTitle = locationName ? `${locationName} Schedule` : 'Schedule';
       ctx.fillText(displayTitle, width / 2, config.padding + 20);
       
       // Draw date/time
-      ctx.font = `12px ${config.fontFamily}`;
+      ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
       ctx.fillStyle = config.mutedTextColor;
       const dateStr = formatDate(timeRange.date);
       const timeStr = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
@@ -1578,7 +1696,7 @@ const ScheduleBuilder = () => {
       
       // Draw grid lines AFTER backgrounds so they're always visible
       ctx.strokeStyle = config.borderColor;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = audioMode ? 2 : 1; // Thicker borders in 8-bit mode
       
       // Outer border
       ctx.strokeRect(config.padding, tableTop, tableWidth, tableHeight);
@@ -1617,7 +1735,7 @@ const ScheduleBuilder = () => {
       
       // Draw header text
       ctx.fillStyle = config.textColor;
-      ctx.font = `500 12px ${config.fontFamily}`;
+      ctx.font = `${audioMode ? '8' : '500 12'}px ${config.fontFamily}`;
       ctx.textAlign = 'left';
       ctx.fillText('Time', config.padding + 10, tableTop + config.rowHeight / 2 + 5);
       
@@ -1642,7 +1760,7 @@ const ScheduleBuilder = () => {
         
         // Time text
         ctx.fillStyle = config.textColor;
-        ctx.font = `500 12px ${config.fontFamily}`;
+        ctx.font = `${audioMode ? '8' : '500 12'}px ${config.fontFamily}`;
         ctx.textAlign = 'left';
         ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 + 5);
         
@@ -1661,27 +1779,36 @@ const ScheduleBuilder = () => {
               const vy = y + 5;
               const vHeight = config.rowHeight - 10;
               
-              // Volunteer background - draw a rounded rectangle
+              // Volunteer background - draw a rounded rectangle or square in 8-bit mode
               const radius = config.cornerRadius;
               ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
               
-              // Draw rounded rectangle
-              ctx.beginPath();
-              ctx.moveTo(vx + radius, vy);
-              ctx.lineTo(vx + volunteerWidth - radius, vy);
-              ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
-              ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
-              ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
-              ctx.lineTo(vx + radius, vy + vHeight);
-              ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
-              ctx.lineTo(vx, vy + radius);
-              ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
-              ctx.closePath();
-              ctx.fill();
+              if (audioMode) {
+                // Square box for 8-bit mode
+                ctx.fillRect(vx, vy, volunteerWidth, vHeight);
+                // Draw border
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(vx, vy, volunteerWidth, vHeight);
+              } else {
+                // Draw rounded rectangle
+                ctx.beginPath();
+                ctx.moveTo(vx + radius, vy);
+                ctx.lineTo(vx + volunteerWidth - radius, vy);
+                ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
+                ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
+                ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
+                ctx.lineTo(vx + radius, vy + vHeight);
+                ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
+                ctx.lineTo(vx, vy + radius);
+                ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
+                ctx.closePath();
+                ctx.fill();
+              }
               
               // Volunteer text
               ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
-              ctx.font = `11px ${config.fontFamily}`;
+              ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
@@ -1699,27 +1826,36 @@ const ScheduleBuilder = () => {
             const vy = y + 5;
             const vHeight = config.rowHeight - 10;
             
-            // Volunteer background - draw a rounded rectangle
+            // Volunteer background
             const radius = config.cornerRadius;
             ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
             
-            // Draw rounded rectangle
-            ctx.beginPath();
-            ctx.moveTo(vx + radius, vy);
-            ctx.lineTo(vx + volunteerWidth - radius, vy);
-            ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
-            ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
-            ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
-            ctx.lineTo(vx + radius, vy + vHeight);
-            ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
-            ctx.lineTo(vx, vy + radius);
-            ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
-            ctx.closePath();
-            ctx.fill();
+            if (audioMode) {
+              // Square box for 8-bit mode
+              ctx.fillRect(vx, vy, volunteerWidth, vHeight);
+              // Draw border
+              ctx.strokeStyle = '#000000';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(vx, vy, volunteerWidth, vHeight);
+            } else {
+              // Draw rounded rectangle
+              ctx.beginPath();
+              ctx.moveTo(vx + radius, vy);
+              ctx.lineTo(vx + volunteerWidth - radius, vy);
+              ctx.quadraticCurveTo(vx + volunteerWidth, vy, vx + volunteerWidth, vy + radius);
+              ctx.lineTo(vx + volunteerWidth, vy + vHeight - radius);
+              ctx.quadraticCurveTo(vx + volunteerWidth, vy + vHeight, vx + volunteerWidth - radius, vy + vHeight);
+              ctx.lineTo(vx + radius, vy + vHeight);
+              ctx.quadraticCurveTo(vx, vy + vHeight, vx, vy + vHeight - radius);
+              ctx.lineTo(vx, vy + radius);
+              ctx.quadraticCurveTo(vx, vy, vx + radius, vy);
+              ctx.closePath();
+              ctx.fill();
+            }
             
             // Volunteer text
             ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
-            ctx.font = `11px ${config.fontFamily}`;
+            ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
@@ -1736,7 +1872,7 @@ const ScheduleBuilder = () => {
       let legendX = config.padding;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = `11px ${config.fontFamily}`;
+      ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
       
       volunteers.forEach(volunteerId => {
         const count = shiftCounts[volunteerId];
@@ -1747,22 +1883,31 @@ const ScheduleBuilder = () => {
         const legendHeight = 18;
         const radius = config.cornerRadius;
         
-        // Background - draw a rounded rectangle
+        // Background
         ctx.fillStyle = colors[volunteerId]?.bg || config.alternateRowColor;
         
-        // Draw rounded rectangle
-        ctx.beginPath();
-        ctx.moveTo(legendX + radius, legendY);
-        ctx.lineTo(legendX + legendWidth - radius, legendY);
-        ctx.quadraticCurveTo(legendX + legendWidth, legendY, legendX + legendWidth, legendY + radius);
-        ctx.lineTo(legendX + legendWidth, legendY + legendHeight - radius);
-        ctx.quadraticCurveTo(legendX + legendWidth, legendY + legendHeight, legendX + legendWidth - radius, legendY + legendHeight);
-        ctx.lineTo(legendX + radius, legendY + legendHeight);
-        ctx.quadraticCurveTo(legendX, legendY + legendHeight, legendX, legendY + legendHeight - radius);
-        ctx.lineTo(legendX, legendY + radius);
-        ctx.quadraticCurveTo(legendX, legendY, legendX + radius, legendY);
-        ctx.closePath();
-        ctx.fill();
+        if (audioMode) {
+          // Square box for 8-bit mode
+          ctx.fillRect(legendX, legendY, legendWidth, legendHeight);
+          // Draw border
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(legendX, legendY, legendWidth, legendHeight);
+        } else {
+          // Draw rounded rectangle
+          ctx.beginPath();
+          ctx.moveTo(legendX + radius, legendY);
+          ctx.lineTo(legendX + legendWidth - radius, legendY);
+          ctx.quadraticCurveTo(legendX + legendWidth, legendY, legendX + legendWidth, legendY + radius);
+          ctx.lineTo(legendX + legendWidth, legendY + legendHeight - radius);
+          ctx.quadraticCurveTo(legendX + legendWidth, legendY + legendHeight, legendX + legendWidth - radius, legendY + legendHeight);
+          ctx.lineTo(legendX + radius, legendY + legendHeight);
+          ctx.quadraticCurveTo(legendX, legendY + legendHeight, legendX, legendY + legendHeight - radius);
+          ctx.lineTo(legendX, legendY + radius);
+          ctx.quadraticCurveTo(legendX, legendY, legendX + radius, legendY);
+          ctx.closePath();
+          ctx.fill();
+        }
         
         // Text
         ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
@@ -1779,10 +1924,10 @@ const ScheduleBuilder = () => {
         // Draw scripture box background
         ctx.fillStyle = darkMode ? '#2d3748' : '#f7fafc';
         ctx.strokeStyle = config.borderColor;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = audioMode ? 2 : 1;
         
         // Measure and wrap text
-        ctx.font = `12px ${config.fontFamily}`;
+        ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
         const maxWidth = scriptureWidth - 20;
         const words = scripturalPoint.split(' ');
         const lines = [];
@@ -1801,7 +1946,7 @@ const ScheduleBuilder = () => {
         if (currentLine) lines.push(currentLine);
         
         // Calculate box height based on text
-        const lineHeight = 16;
+        const lineHeight = audioMode ? 12 : 16;
         const textHeight = lines.length * lineHeight;
         const boxHeight = textHeight + 30;
         
@@ -1811,12 +1956,12 @@ const ScheduleBuilder = () => {
         
         // Draw heading
         ctx.fillStyle = config.textColor;
-        ctx.font = `bold 13px ${config.fontFamily}`;
+        ctx.font = `${audioMode ? 'bold 8' : 'bold 13'}px ${config.fontFamily}`;
         ctx.textAlign = 'left';
         ctx.fillText('Scriptural Discussion', config.padding + 10, scriptureY + 18);
         
         // Draw text content
-        ctx.font = `12px ${config.fontFamily}`;
+        ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
         lines.forEach((line, i) => {
           ctx.fillText(line, config.padding + 10, scriptureY + 36 + (i * lineHeight));
         });
@@ -1856,34 +2001,34 @@ const ScheduleBuilder = () => {
     const displayTitle = locationName ? `${locationName} Schedule` : `Schedule`;
     
     return (
-      <div className={`fixed inset-0 ${darkMode ? 'bg-gray-900' : 'bg-white'} z-50 overflow-auto`}>
+      <div className={`fixed inset-0 ${darkMode ? 'bg-gray-900' : 'bg-white'} z-50 overflow-auto ${audioMode ? 'eight-bit-container' : ''}`}>
         <div className="relative max-w-md mx-auto">
           {/* Controls - with better spacing for mobile */}
           <div className="absolute top-2 right-2 flex space-x-2">
             <button 
               onClick={toggleDarkMode}
-              className={`p-2 rounded-full ${darkMode ? 'text-yellow-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+              className={`p-2 ${audioMode ? 'eight-bit-button' : 'rounded-full'} ${darkMode ? 'text-yellow-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
               aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
             >
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             <button 
               onClick={downloadScheduleImage}
-              className={`p-2 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'} download-btn`}
+              className={`p-2 ${audioMode ? 'eight-bit-button' : 'rounded-full'} ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'} download-btn`}
               aria-label="Download schedule"
             >
               <Download size={20} />
             </button>
             <button 
               onClick={showSaveHelp}
-              className={`p-2 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+              className={`p-2 ${audioMode ? 'eight-bit-button' : 'rounded-full'} ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
               aria-label="Help with saving"
             >
               <Info size={20} />
             </button>
             <button 
               onClick={() => setScreenshotMode(false)}
-              className={`p-2 rounded-full ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+              className={`p-2 ${audioMode ? 'eight-bit-button' : 'rounded-full'} ${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
               aria-label="Close screenshot mode"
             >
               <X size={20} />
@@ -1894,8 +2039,8 @@ const ScheduleBuilder = () => {
           <div className="pt-12 pb-2 px-3" ref={scheduleRef}>
             {/* Header */}
             <div className="text-center mb-2">
-              <h1 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{displayTitle}</h1>
-              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{dateStr} • {timeStr}</p>
+              <h1 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'} ${audioMode ? 'eight-bit-text' : ''}`}>{displayTitle}</h1>
+              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'} ${audioMode ? 'eight-bit-text' : ''}`}>{dateStr} • {timeStr}</p>
             </div>
             
             {/* Compact Schedule Table - Using pure HTML table for better rendering */}
@@ -1905,781 +2050,720 @@ const ScheduleBuilder = () => {
               borderSpacing: 0,
               fontSize: '12px',
               marginBottom: '8px',
-              border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0'
+              border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+              fontFamily: audioMode ? '"Press Start 2P", cursive' : 'inherit',
+              ...(audioMode ? { imageRendering: 'pixelated', borderWidth: '2px' } : {})
+            }}><thead>
+            <tr style={{ 
+              background: darkMode ? '#2d3748' : '#f7fafc'
             }}>
-              <thead>
-                <tr style={{ 
-                  background: darkMode ? '#2d3748' : '#f7fafc'
-                }}>
-                  <th style={{ 
+              <th style={{ 
+                border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                padding: '4px 4px',
+                textAlign: 'left',
+                fontWeight: '500',
+                color: darkMode ? '#e2e8f0' : '#1a202c',
+                ...(audioMode ? { borderWidth: '2px', fontSize: '10px' } : {})
+              }}>
+                Time
+              </th>
+              
+              {multipleLocations ? (
+                // Multiple locations table headers
+                locationNames.map((name, index) => (
+                  <th key={index} style={{ 
                     border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
                     padding: '4px 4px',
-                    textAlign: 'left',
+                    textAlign: 'center',
                     fontWeight: '500',
-                    color: darkMode ? '#e2e8f0' : '#1a202c'
+                    color: darkMode ? '#e2e8f0' : '#1a202c',
+                    ...(audioMode ? { borderWidth: '2px', fontSize: '10px' } : {})
                   }}>
-                    Time
+                    {name}
                   </th>
-                  
-                  {multipleLocations ? (
-                    // Multiple locations table headers
-                    locationNames.map((name, index) => (
-                      <th key={index} style={{ 
-                        border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
-                        padding: '4px 4px',
-                        textAlign: 'center',
-                        fontWeight: '500',
-                        color: darkMode ? '#e2e8f0' : '#1a202c'
-                      }}>
-                        {name}
-                      </th>
-                    ))
-                  ) : (
-                    // Single location header
-                    <th style={{ 
-                      border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
-                      padding: '4px 4px',
-                      textAlign: 'center',
-                      fontWeight: '500',
-                      color: darkMode ? '#e2e8f0' : '#1a202c'
-                    }}>
-                      Volunteers
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {schedule.map((slot, index) => (
-                  <tr key={index} style={{ 
-                    background: index % 2 === 0 
-                      ? (darkMode ? '#1a202c' : '#ffffff') 
-                      : (darkMode ? '#2d3748' : '#f7fafc')
-                  }}>
-                    <td style={{ 
-                      border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
-                      padding: '4px 4px',
-                      whiteSpace: 'nowrap',
-                      fontWeight: '500',
-                      color: darkMode ? '#e2e8f0' : '#1a202c'
-                    }}>
-                      {slot.compactDisplay}
-                    </td>
-                    
-                    {multipleLocations ? (
-                      // Multiple locations cells
-                      slot.locations.map((location, locIndex) => (
-                        <td key={locIndex} style={{ 
-                          border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
-                          padding: '4px 2px',
-                          textAlign: 'center'
-                        }}>
-                          <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
-                            {location.volunteers.map((volunteerId, vIndex) => (
-                              <div 
-                                key={vIndex}
-                                style={{ 
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '45%',
-                                  height: '22px',
-                                  backgroundColor: colors[volunteerId]?.bg || 'transparent',
-                                  color: colors[volunteerId]?.text || 'inherit',
-                                  borderRadius: '2px',
-                                  fontSize: '11px',
-                                  margin: '0 2px'
-                                }}
-                              >
-                                {volunteerMap[volunteerId] || volunteerId}
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      ))
-                    ) : (
-                      // Single location cell
-                      <td style={{ 
-                        border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
-                        padding: '4px 2px',
-                        textAlign: 'center'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
-                          {slot.volunteers.map((volunteerId, vIndex) => (
-                            <div 
-                              key={vIndex}
-                              style={{ 
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '45%',
-                                height: '22px',
-                                backgroundColor: colors[volunteerId]?.bg || 'transparent',
-                                color: colors[volunteerId]?.text || 'inherit',
-                                borderRadius: '2px',
-                                fontSize: '11px',
-                                margin: '0 2px'
-                              }}
-                            >
-                              {volunteerMap[volunteerId] || volunteerId}
-                            </div>
-                          ))}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            
-            {/* Legend using flex for vertical alignment */}
-            <div style={{ fontSize: '11px', marginBottom: '4px' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {Object.keys(shiftCounts).map((volunteerId, index) => (
-                  <div 
-                    key={index}
-                    style={{ 
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      height: '18px',
-                      backgroundColor: colors[volunteerId]?.bg || 'transparent',
-                      color: colors[volunteerId]?.text || 'inherit',
-                      borderRadius: '2px',
-                      fontSize: '11px',
-                      padding: '0 4px',
-                      margin: '0 2px'
-                    }}
-                  >
-                    {volunteerMap[volunteerId] || volunteerId}:{shiftCounts[volunteerId]}
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            {/* Scriptural Point (only in SMPW mode) */}
-            {smpwMode && scripturalPoint && (
-              <div className={`mt-4 p-3 rounded-md ${darkMode ? 'bg-gray-700 border border-gray-600' : 'bg-gray-50 border border-gray-200'}`}>
-                <div className={`text-sm font-semibold mb-1 ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
-                  Scriptural Discussion
-                </div>
-                <div className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  {scripturalPoint}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Share button with status indication */}
-          <div className="flex justify-center mt-4 mb-2">
-            <button
-              onClick={copyScheduleToClipboard}
-              disabled={copyStatus === 'copying'}
-              className={`flex items-center justify-center py-2 px-5 rounded-lg font-medium copy-btn ${
-                copyStatus === 'success' 
-                  ? (darkMode ? 'bg-green-800 text-green-200' : 'bg-green-600 text-white')
-                  : copyStatus === 'error'
-                  ? (darkMode ? 'bg-red-800 text-red-200' : 'bg-red-600 text-white')
-                  : (darkMode ? 'bg-indigo-800 text-white' : 'bg-indigo-600 text-white')
-              } transition-colors`}
-            >
-              {copyStatus === 'copying' ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Processing...
-                </>
-              ) : copyStatus === 'success' ? (
-                <>
-                  <Check className="mr-2" size={20} />
-                  Success!
-                </>
-              ) : copyStatus === 'error' ? (
-                <>
-                  <AlertCircle className="mr-2" size={20} />
-                  Try Another Method
-                </>
+                ))
               ) : (
-                <>
-                  <Copy className="mr-2" size={20} />
-                  Share Schedule
-                </>
+                // Single location header
+                <th style={{ 
+                  border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                  padding: '4px 4px',
+                  textAlign: 'center',
+                  fontWeight: '500',
+                  color: darkMode ? '#e2e8f0' : '#1a202c',
+                  ...(audioMode ? { borderWidth: '2px', fontSize: '10px' } : {})
+                }}>
+                  Volunteers
+                </th>
               )}
-            </button>
-          </div>
-          
-          <div className="text-center mb-4">
-            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              Share this schedule via message or save to your device
-            </p>
+            </tr>
+          </thead>
+          <tbody>
+            {schedule.map((slot, index) => (
+              <tr key={index} style={{ 
+                background: index % 2 === 0 
+                  ? (darkMode ? '#1a202c' : '#ffffff') 
+                  : (darkMode ? '#2d3748' : '#f7fafc')
+              }}>
+                <td style={{ 
+                  border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                  padding: '4px 4px',
+                  whiteSpace: 'nowrap',
+                  fontWeight: '500',
+                  color: darkMode ? '#e2e8f0' : '#1a202c',
+                  ...(audioMode ? { borderWidth: '2px', fontSize: '10px' } : {})
+                }}>
+                  {slot.compactDisplay}
+                </td>
+                
+                {multipleLocations ? (
+                  // Multiple locations cells
+                  slot.locations.map((location, locIndex) => (
+                    <td key={locIndex} style={{ 
+                      border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                      padding: '4px 2px',
+                      textAlign: 'center',
+                      ...(audioMode ? { borderWidth: '2px' } : {})
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
+                        {location.volunteers.map((volunteerId, vIndex) => (
+                          <div 
+                            key={vIndex}
+                            style={{ 
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '45%',
+                              height: '22px',
+                              backgroundColor: colors[volunteerId]?.bg || 'transparent',
+                              color: colors[volunteerId]?.text || 'inherit',
+                              borderRadius: audioMode ? '0px' : '2px',
+                              fontSize: audioMode ? '8px' : '11px',
+                              margin: '0 2px',
+                              ...(audioMode ? { border: '2px solid #000' } : {})
+                            }}
+                          >
+                            {volunteerMap[volunteerId] || volunteerId}
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                  ))
+                ) : (
+                  // Single location cell
+                  <td style={{ 
+                    border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                    padding: '4px 2px',
+                    textAlign: 'center',
+                    ...(audioMode ? { borderWidth: '2px' } : {})
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
+                      {slot.volunteers.map((volunteerId, vIndex) => (
+                        <div 
+                          key={vIndex}
+                          style={{ 
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '45%',
+                            height: '22px',
+                            backgroundColor: colors[volunteerId]?.bg || 'transparent',
+                            color: colors[volunteerId]?.text || 'inherit',
+                            borderRadius: audioMode ? '0px' : '2px',
+                            fontSize: audioMode ? '8px' : '11px',
+                            margin: '0 2px',
+                            ...(audioMode ? { border: '2px solid #000' } : {})
+                          }}
+                        >
+                          {volunteerMap[volunteerId] || volunteerId}
+                        </div>
+                      ))}
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        
+        {/* Legend using flex for vertical alignment */}
+        <div style={{ fontSize: audioMode ? '8px' : '11px', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+            {Object.keys(shiftCounts).map((volunteerId, index) => (
+              <div 
+                key={index}
+                style={{ 
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '18px',
+                  backgroundColor: colors[volunteerId]?.bg || 'transparent',
+                  color: colors[volunteerId]?.text || 'inherit',
+                  borderRadius: audioMode ? '0px' : '2px',
+                  fontSize: audioMode ? '8px' : '11px',
+                  padding: '0 4px',
+                  margin: '0 2px',
+                  ...(audioMode ? { border: '2px solid #000' } : {})
+                }}
+              >
+                {volunteerMap[volunteerId] || volunteerId}:{shiftCounts[volunteerId]}
+              </div>
+            ))}
           </div>
         </div>
         
-        {/* Save Instructions Modal */}
-        {showSaveInstructions && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-lg shadow-lg max-w-sm mx-auto w-full`}>
-              <h3 className="text-lg font-bold mb-2 flex items-center">
-                <Smartphone className="mr-2" size={20} />
-                Instructions
-              </h3>
-              <div className="mb-4">
-                <p className="mb-2 text-sm">How to share:</p>
-                <ol className={`list-decimal pl-5 text-sm space-y-1 ${darkMode ? 'text-gray-300' : ''}`}>
-                  <li>Select "Share Schedule" to share directly using your phone's text messaging app.</li>
-                  <li>If you're not ready to share this, click the download icon at the top to save a picture of the schedule to your phone.</li>
-                </ol>
-              </div>
-              <button 
-                onClick={() => setShowSaveInstructions(false)}
-                className="w-full py-2 bg-indigo-600 text-white rounded-md"
-              >
-                Got it
-              </button>
+        {/* Scriptural Point (only in SMPW mode) */}
+        {smpwMode && scripturalPoint && (
+          <div className={`mt-4 p-3 rounded-md ${darkMode ? 'bg-gray-700 border border-gray-600' : 'bg-gray-50 border border-gray-200'} ${audioMode ? 'eight-bit-box' : ''}`}>
+            <div className={`text-sm font-semibold mb-1 ${darkMode ? 'text-gray-200' : 'text-gray-700'} ${audioMode ? 'eight-bit-text' : ''}`}>
+              Scriptural Discussion
             </div>
-          </div>
-        )}
-        
-        {/* Copy Fallback Instructions */}
-        {showCopyFallback && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-lg shadow-lg max-w-sm mx-auto w-full`}>
-              <h3 className="text-lg font-bold mb-2 flex items-center">
-                <Copy className="mr-2" size={20} />
-                Copy Schedule
-              </h3>
-              <div className="mb-4">
-                <p className="mb-2 text-sm">Your device doesn't support direct clipboard copying of images. You can:</p>
-                <ol className={`list-decimal pl-5 text-sm space-y-1 ${darkMode ? 'text-gray-300' : ''}`}>
-                  <li>Take a screenshot of this screen</li>
-                  <li>Download the image using the download button</li>
-                  <li>Use the screenshot to share via messages</li>
-                </ol>
-              </div>
-              <button 
-                onClick={() => setShowCopyFallback(false)}
-                className="w-full py-2 bg-indigo-600 text-white rounded-md"
-              >
-                Got it
-              </button>
-            </div>
-          </div>
-        )}
-        
-        {/* iOS-specific Instructions Modal */}
-        {showIOSInstructions && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 rounded-lg shadow-lg max-w-sm mx-auto w-full`}>
-              <h3 className="text-lg font-bold mb-2 flex items-center">
-                <Smartphone className="mr-2" size={20} />
-                iPhone Instructions
-              </h3>
-              <div className="mb-4">
-                <p className="mb-2 text-sm">To share this schedule from your iPhone:</p>
-                <ol className={`list-decimal pl-5 text-sm space-y-2 ${darkMode ? 'text-gray-300' : ''}`}>
-                  <li>Take a screenshot by pressing the side button and volume up button at the same time</li>
-                  <li>Tap the screenshot preview in the bottom-left corner</li>
-                  <li>Use the crop tool to adjust if needed</li>
-                  <li>Tap the share icon (square with arrow) and select your messaging app</li>
-                </ol>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => {
-                    setShowIOSInstructions(false);
-                    downloadScheduleImage();
-                  }}
-                  className="flex-1 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center"
-                >
-                  <Download size={16} className="mr-1" /> Download
-                </button>
-                <button 
-                  onClick={() => setShowIOSInstructions(false)}
-                  className="flex-1 py-2 bg-gray-600 text-white rounded-md"
-                >
-                  Got it
-                </button>
-              </div>
+            <div className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'} ${audioMode ? 'eight-bit-text' : ''}`}>
+              {scripturalPoint}
             </div>
           </div>
         )}
       </div>
-    );
-  };
-  
-  return (
-    <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100'}`}>
-      {/* Audio element for the Easter egg */}
-      <audio ref={audioRef} src="/peopleofallsorts.mp3" loop={audioMode && !audioMuted} />
       
-      {/* SMPW Mode Activation Animation */}
-      {showActivation && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-60">
-          <div className="bg-indigo-600 p-6 rounded-lg shadow-xl transform scale-100 animate-pulse">
-            <h2 className="text-xl font-bold text-white">{activationMessage}</h2>
-          </div>
-        </div>
-      )}
-      
-      {/* Mute button (appears only when audio is playing) */}
-      {audioMode && (
-        <button 
-          onClick={() => {
-            setAudioMuted(!audioMuted);
-            if (audioRef.current) {
-              if (audioMuted) {
-                audioRef.current.play().catch(e => console.error('Audio playback failed:', e));
-              } else {
-                audioRef.current.pause();
-              }
-            }
-          }}
-          className={`fixed bottom-4 right-4 p-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-100'} rounded-full shadow-lg z-50`}
-          aria-label={audioMuted ? "Unmute audio" : "Mute audio"}
+      {/* Share button with status indication */}
+      <div className="flex justify-center mt-4 mb-2">
+        <button
+          onClick={copyScheduleToClipboard}
+          disabled={copyStatus === 'copying'}
+          className={`flex items-center justify-center py-2 px-5 ${audioMode ? 'eight-bit-button' : 'rounded-lg'} font-medium copy-btn ${
+            copyStatus === 'success' 
+              ? (darkMode ? 'bg-green-800 text-green-200' : 'bg-green-600 text-white')
+              : copyStatus === 'error'
+              ? (darkMode ? 'bg-red-800 text-red-200' : 'bg-red-600 text-white')
+              : (darkMode ? 'bg-indigo-800 text-white' : 'bg-indigo-600 text-white')
+          } transition-colors`}
         >
-          {audioMuted ? <VolumeX size={20} className={darkMode ? 'text-white' : 'text-gray-800'} /> : <Volume2 size={20} className={darkMode ? 'text-white' : 'text-gray-800'} />}
+          {copyStatus === 'copying' ? (
+            <>
+              <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Processing...
+            </>
+          ) : copyStatus === 'success' ? (
+            <>
+              <Check className="mr-2" size={20} />
+              Success!
+            </>
+          ) : copyStatus === 'error' ? (
+            <>
+              <AlertCircle className="mr-2" size={20} />
+              Try Another Method
+            </>
+          ) : (
+            <>
+              <Copy className="mr-2" size={20} />
+              Share Schedule
+            </>
+          )}
         </button>
-      )}
+      </div>
       
-      {/* Header with mobile improvements */}
-      <header className={`bg-gradient-to-r ${darkMode ? 'from-indigo-900 to-purple-900' : 'from-indigo-600 to-purple-600'} py-4 px-4 text-white`}>
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col sm:flex-row items-center justify-between">
-            <h1 
-              className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-0 flex items-center cursor-pointer"
-              onClick={handleTitleClick}
+      <div className="text-center mb-4">
+        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} ${audioMode ? 'eight-bit-text' : ''}`}>
+          Share this schedule via message or save to your device
+        </p>
+      </div>
+    </div>
+    
+    {/* Save Instructions Modal */}
+    {showSaveInstructions && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 ${audioMode ? 'eight-bit-panel' : 'rounded-lg'} shadow-lg max-w-sm mx-auto w-full`}>
+          <h3 className={`text-lg font-bold mb-2 flex items-center ${audioMode ? 'eight-bit-heading' : ''}`}>
+            <Smartphone className="mr-2" size={20} />
+            Instructions
+          </h3>
+          <div className="mb-4">
+            <p className={`mb-2 text-sm ${audioMode ? 'eight-bit-text' : ''}`}>How to share:</p>
+            <ol className={`list-decimal pl-5 text-sm space-y-1 ${darkMode ? 'text-gray-300' : ''} ${audioMode ? 'eight-bit-text' : ''}`}>
+              <li>Select "Share Schedule" to share directly using your phone's text messaging app.</li>
+              <li>If you're not ready to share this, click the download icon at the top to save a picture of the schedule to your phone.</li>
+            </ol>
+          </div>
+          <button 
+            onClick={() => setShowSaveInstructions(false)}
+            className={`w-full py-2 bg-indigo-600 text-white ${audioMode ? 'eight-bit-button' : 'rounded-md'}`}
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    )}
+    
+    {/* Copy Fallback Instructions */}
+    {showCopyFallback && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 ${audioMode ? 'eight-bit-panel' : 'rounded-lg'} shadow-lg max-w-sm mx-auto w-full`}>
+          <h3 className={`text-lg font-bold mb-2 flex items-center ${audioMode ? 'eight-bit-heading' : ''}`}>
+            <Copy className="mr-2" size={20} />
+            Copy Schedule
+          </h3>
+          <div className="mb-4">
+            <p className={`mb-2 text-sm ${audioMode ? 'eight-bit-text' : ''}`}>Your device doesn't support direct clipboard copying of images. You can:</p>
+            <ol className={`list-decimal pl-5 text-sm space-y-1 ${darkMode ? 'text-gray-300' : ''} ${audioMode ? 'eight-bit-text' : ''}`}>
+              <li>Take a screenshot of this screen</li>
+              <li>Download the image using the download button</li>
+              <li>Use the screenshot to share via messages</li>
+            </ol>
+          </div>
+          <button 
+            onClick={() => setShowCopyFallback(false)}
+            className={`w-full py-2 bg-indigo-600 text-white ${audioMode ? 'eight-bit-button' : 'rounded-md'}`}
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    )}
+    
+    {/* iOS-specific Instructions Modal */}
+    {showIOSInstructions && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} p-4 ${audioMode ? 'eight-bit-panel' : 'rounded-lg'} shadow-lg max-w-sm mx-auto w-full`}>
+          <h3 className={`text-lg font-bold mb-2 flex items-center ${audioMode ? 'eight-bit-heading' : ''}`}>
+            <Smartphone className="mr-2" size={20} />
+            iPhone Instructions
+          </h3>
+          <div className="mb-4">
+            <p className={`mb-2 text-sm ${audioMode ? 'eight-bit-text' : ''}`}>To share this schedule from your iPhone:</p>
+            <ol className={`list-decimal pl-5 text-sm space-y-2 ${darkMode ? 'text-gray-300' : ''} ${audioMode ? 'eight-bit-text' : ''}`}>
+              <li>Take a screenshot by pressing the side button and volume up button at the same time</li>
+              <li>Tap the screenshot preview in the bottom-left corner</li>
+              <li>Use the crop tool to adjust if needed</li>
+              <li>Tap the share icon (square with arrow) and select your messaging app</li>
+            </ol>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => {
+                setShowIOSInstructions(false);
+                downloadScheduleImage();
+              }}
+              className={`flex-1 py-2 bg-blue-600 text-white ${audioMode ? 'eight-bit-button' : 'rounded-md'} flex items-center justify-center`}
             >
-              <Calendar className="mr-2 hidden sm:inline" />
-              <span>{smpwMode ? "SMPW Scheduler" : "Volunteer Schedule Builder"}</span>
-            </h1>
-            
-            <div className="flex items-center space-x-2">
-              <button 
-                onClick={toggleDarkMode}
-                className="p-2 rounded-full bg-white bg-opacity-10 hover:bg-opacity-20 text-white flex items-center"
-                aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-              >
-                {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-                <span className="ml-1 text-sm hidden sm:inline">{darkMode ? "Light" : "Dark"}</span>
-              </button>
-            </div>
+              <Download size={16} className="mr-1" /> Download
+            </button>
+            <button 
+              onClick={() => setShowIOSInstructions(false)}
+              className={`flex-1 py-2 bg-gray-600 text-white ${audioMode ? 'eight-bit-button' : 'rounded-md'}`}
+            >
+              Got it
+            </button>
           </div>
         </div>
-      </header>
-      
-      {screenshotMode && <ScreenshotView />}
-      
-      {/* Main content with mobile improvements */}
-      <main className="py-4 px-3 sm:py-6 sm:px-4 max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          {/* Setup Panel - Improved for mobile */}
-          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} p-4 sm:p-6 rounded-lg shadow`}>
-            <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-4 flex items-center`}>
-              <Users className={`mr-2 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} size={20} />
-              Setup
-            </h2>
-            
-            <div className="space-y-5">
-              {/* Location Name */}
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  <Building className="inline-block mr-1 mb-0.5" size={16} />
-                  Location Name (Optional)
-                </label>
-                {smpwMode ? (
-                  <select
-                    value={locationName}
-                    onChange={(e) => setLocationName(e.target.value)}
-                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-                  >
-                    <option value="">Select location (optional)</option>
-                    {smpwLocations.map((location, index) => (
-                      <option key={index} value={location}>{location}</option>
-                    ))}
-                  </select>
-                ) : (
+      </div>
+    )}
+  </div>
+);
+};
+
+return (
+<div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100'} ${audioMode ? 'eight-bit-container' : ''}`}>
+  {/* Audio element for the Easter egg */}
+  <audio ref={audioRef} src={`${process.env.PUBLIC_URL}/peopleofallsorts.mp3`} loop={audioMode && !audioMuted} />
+  
+  {/* SMPW Mode Activation Animation */}
+  {showActivation && (
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-60">
+      <div className={`bg-indigo-600 p-6 ${audioMode ? 'eight-bit-box' : 'rounded-lg'} shadow-xl transform scale-100 animate-pulse`}>
+        <h2 className={`text-xl font-bold text-white ${audioMode ? 'eight-bit-text' : ''}`}>{activationMessage}</h2>
+      </div>
+    </div>
+  )}
+  
+  {/* Mute button (appears only when audio is playing) */}
+  {audioMode && (
+    <button 
+      onClick={() => {
+        setAudioMuted(!audioMuted);
+        if (audioRef.current) {
+          if (audioMuted) {
+            audioRef.current.play().catch(e => console.error('Audio playback failed:', e));
+          } else {
+            audioRef.current.pause();
+          }
+        }
+      }}
+      className={`fixed bottom-4 right-4 p-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-100'} ${audioMode ? 'eight-bit-button' : 'rounded-full'} shadow-lg z-50`}
+      aria-label={audioMuted ? "Unmute audio" : "Mute audio"}
+    >
+      {audioMuted ? <VolumeX size={20} className={darkMode ? 'text-white' : 'text-gray-800'} /> : <Volume2 size={20} className={darkMode ? 'text-white' : 'text-gray-800'} />}
+    </button>
+  )}
+  
+  {/* Header with mobile improvements */}
+  <header className={`bg-gradient-to-r ${darkMode ? 'from-indigo-900 to-purple-900' : 'from-indigo-600 to-purple-600'} py-4 px-4 text-white ${audioMode ? 'eight-bit-header' : ''}`}>
+    <div className="max-w-6xl mx-auto">
+      <div className="flex flex-col sm:flex-row items-center justify-between">
+        <h1 
+          className={`text-xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-0 flex items-center cursor-pointer ${audioMode ? 'eight-bit-text' : ''}`}
+          onClick={handleTitleClick}
+        >
+          <Calendar className="mr-2 hidden sm:inline" />
+          <span>{smpwMode ? (audioMode ? "8-BIT SMPW" : "SMPW Scheduler") : (audioMode ? "8-BIT SCHEDULER" : "Volunteer Schedule Builder")}</span>
+        </h1>
+        
+        <div className="flex items-center space-x-2">
+          <button 
+            onClick={toggleDarkMode}
+            className={`p-2 ${audioMode ? 'eight-bit-button' : 'rounded-full'} bg-white bg-opacity-10 hover:bg-opacity-20 text-white flex items-center`}
+            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            <span className="ml-1 text-sm hidden sm:inline">{darkMode ? "Light" : "Dark"}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+  
+  {screenshotMode && <ScreenshotView />}
+  
+  {/* Main content with mobile improvements */}
+  <main className="py-4 px-3 sm:py-6 sm:px-4 max-w-6xl mx-auto">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+      {/* Setup Panel - Improved for mobile */}
+      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} p-4 sm:p-6 ${audioMode ? 'eight-bit-panel' : 'rounded-lg'} shadow`}>
+        <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} mb-4 flex items-center ${audioMode ? 'eight-bit-heading' : ''}`}>
+          <Users className={`mr-2 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} size={20} />
+          Setup
+        </h2>
+        
+        <div className="space-y-5">
+          {/* Location Name */}
+          <div>
+            <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
+              <Building className="inline-block mr-1 mb-0.5" size={16} />
+              Location Name (Optional)
+            </label>
+            {smpwMode ? (
+              <select
+                value={locationName}
+                onChange={(e) => setLocationName(e.target.value)}
+                className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+              >
+                <option value="">Select location (optional)</option>
+                {smpwLocations.map((location, index) => (
+                  <option key={index} value={location}>{location}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={locationName}
+                onChange={(e) => setLocationName(e.target.value)}
+                placeholder="Enter location name"
+                className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+              />
+            )}
+          </div>
+          
+          {/* Multiple Locations Toggle */}
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="multipleLocations"
+              checked={multipleLocations}
+              onChange={handleMultipleLocationsChange}
+              className={`h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 ${audioMode ? 'eight-bit-checkbox' : 'rounded'}`}
+            />
+            <label
+              htmlFor="multipleLocations"
+              className={`ml-2 block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} ${audioMode ? 'eight-bit-text' : ''}`}
+            >
+              {smpwMode ? "Eastern Market Mode" : "Multiple Locations"}
+            </label>
+            <span className={`ml-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} ${audioMode ? 'eight-bit-text' : ''}`}>
+              {smpwMode ? 
+                "(Auto-configures Fisher/Russell and Market/Winder)" : 
+                "(e.g. Two cart locations w/ one keyman)"}
+            </span>
+          </div>
+          
+          {/* Location Names when Multiple Locations is checked */}
+          {multipleLocations && !smpwMode && (
+            <div className="space-y-3 pl-6 border-l-2 border-indigo-200 dark:border-indigo-800">
+              {locationNames.map((name, index) => (
+                <div key={index}>
+                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-1 ${audioMode ? 'eight-bit-text' : ''}`}>
+                    Location {index + 1} Name
+                  </label>
                   <input
                     type="text"
-                    value={locationName}
-                    onChange={(e) => setLocationName(e.target.value)}
-                    placeholder="Enter location name"
-                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-                  />
-                )}
-              </div>
-              
-              {/* Multiple Locations Toggle */}
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="multipleLocations"
-                  checked={multipleLocations}
-                  onChange={handleMultipleLocationsChange}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                />
-                <label
-                  htmlFor="multipleLocations"
-                  className={`ml-2 block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
-                >
-                  {smpwMode ? "Eastern Market Mode" : "Multiple Locations"}
-                </label>
-                <span className={`ml-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  {smpwMode ? 
-                    "(Auto-configures Fisher/Russell and Market/Winder)" : 
-                    "(e.g. Two cart locations w/ one keyman)"}
-                </span>
-              </div>
-              
-              {/* Location Names when Multiple Locations is checked */}
-              {multipleLocations && !smpwMode && (
-                <div className="space-y-3 pl-6 border-l-2 border-indigo-200 dark:border-indigo-800">
-                  {locationNames.map((name, index) => (
-                    <div key={index}>
-                      <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                        Location {index + 1} Name
-                      </label>
-                      <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => handleLocationNameChange(index, e.target.value)}
-                        placeholder={`Location ${index + 1}`}
-                        className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {/* Date */}
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  <Calendar className="inline-block mr-1 mb-0.5" size={16} />
-                  Shift Date
-                </label>
-                <input
-                  type="date"
-                  value={timeRange.date}
-                  onChange={(e) => handleTimeChange('date', e.target.value)}
-                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-                />
-              </div>
-              
-              {/* Time Range - Improved for mobile */}
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  <Clock className="inline-block mr-1 mb-0.5" size={16} />
-                  Shift Time
-                </label>
-                <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                  <div className="w-full">
-                    <input
-                      type="time"
-                      value={timeRange.startTime}
-                      onChange={(e) => handleTimeChange('startTime', e.target.value)}
-                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-                    />
-                  </div>
-                  <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center sm:mx-2`}>to</span>
-                  <div className="w-full">
-                    <input
-                      type="time"
-                      value={timeRange.endTime}
-                      onChange={(e) => handleTimeChange('endTime', e.target.value)}
-                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              {/* Shift Interval */}
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  <Clock className="inline-block mr-1 mb-0.5" size={16} />
-                  How long should each shift be?
-                </label>
-                <div className="relative">
-                  <select
-                    value={timeRange.isCustomInterval ? 'custom' : timeRange.interval}
-                    onChange={(e) => handleTimeChange('interval', e.target.value)}
-                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-                  >
-                    <option value="20">20 minutes</option>
-                    <option value="25">25 minutes</option>
-                    <option value="30">30 minutes</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                    <ChevronDown size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
-                  </div>
-                </div>
-                
-                {/* Custom interval input */}
-                {timeRange.isCustomInterval && (
-                  <div className="mt-2">
-                    <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                      Custom shift length (minutes)
-                    </label>
-                    <input
-                      type="number"
-                      min="5"
-                      max="120"
-                      value={timeRange.customInterval}
-                      onChange={(e) => handleTimeChange('customInterval', e.target.value)}
-                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-                    />
-                  </div>
-                )}
-              </div>
-              
-              {/* Scriptural Point (SMPW Mode only) */}
-              {smpwMode && (
-                <div>
-                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    <Info className="inline-block mr-1 mb-0.5" size={16} />
-                    Share your Scriptural Point (Optional)
-                  </label>
-                  <textarea
-                    value={scripturalPoint}
-                    onChange={(e) => setScripturalPoint(e.target.value)}
-                    placeholder="Enter a scriptural discussion point..."
-                    rows="3"
-                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                    value={name}
+                    onChange={(e) => handleLocationNameChange(index, e.target.value)}
+                    placeholder={`Location ${index + 1}`}
+                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                   />
                 </div>
-              )}
-              
-              {/* Volunteers - Improved spacing for mobile */}
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  <Users className="inline-block mr-1 mb-0.5" size={16} />
-                  Volunteers {multipleLocations && <span className="text-xs font-normal ml-1">
-                    (min 4 required for multiple locations)
-                  </span>}
-                </label>
-                <div className="space-y-2">
-                  {volunteers.map((volunteer, index) => (
-                    <input
-                      key={index}
-                      type="text"
-                      value={volunteer}
-                      onChange={(e) => handleVolunteerChange(index, e.target.value)}
-                      placeholder={`Volunteer ${index + 1}`}
-                      className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-                    />
-                  ))}
-                </div>
-                <button
-                  onClick={addVolunteer}
-                  className={`mt-3 inline-flex items-center px-3 py-2 text-sm font-medium ${
-                    darkMode 
-                      ? 'text-indigo-300 bg-indigo-900 hover:bg-indigo-800' 
-                      : 'text-indigo-600 bg-indigo-100 hover:bg-indigo-200'
-                  } rounded`}
-                >
-                  <Plus size={16} className="mr-1" />
-                  Add Volunteer
-                </button>
+              ))}
+            </div>
+          )}
+          
+          {/* Date */}
+          <div>
+            <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
+              <Calendar className="inline-block mr-1 mb-0.5" size={16} />
+              Shift Date
+            </label>
+            <input
+              type="date"
+              value={timeRange.date}
+              onChange={(e) => handleTimeChange('date', e.target.value)}
+              className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+            />
+          </div>
+          
+          {/* Time Range - Improved for mobile */}
+          <div>
+            <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
+              <Clock className="inline-block mr-1 mb-0.5" size={16} />
+              Shift Time
+            </label>
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+              <div className="w-full">
+                <input
+                  type="time"
+                  value={timeRange.startTime}
+                  onChange={(e) => handleTimeChange('startTime', e.target.value)}
+                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                />
               </div>
-              
-              {/* Generate Button - Increased touch target for mobile */}
-              <button
-                onClick={generateSchedule}
-                disabled={isLoading}
-                className="w-full py-3 px-4 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center justify-center text-base"
-              >
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Generating...
-                  </>
-                ) : "Generate Schedule"}
-              </button>
+              <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center sm:mx-2 ${audioMode ? 'eight-bit-text' : ''}`}>to</span>
+              <div className="w-full">
+                <input
+                  type="time"
+                  value={timeRange.endTime}
+                  onChange={(e) => handleTimeChange('endTime', e.target.value)}
+                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                />
+              </div>
             </div>
           </div>
           
-          {/* Schedule Panel - Improved for mobile */}
-          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} p-4 sm:p-6 rounded-lg shadow`}>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} flex items-center`}>
-                <Calendar className={`mr-2 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} size={20} />
-                Schedule
-              </h2>
-              
-              {schedule.length > 0 && (
-                <button
-                  onClick={shuffleSchedule}
-                  disabled={isLoading}
-                  className={`inline-flex items-center px-3 py-1 text-sm font-medium ${
-                    darkMode 
-                      ? 'text-purple-300 bg-purple-900 hover:bg-purple-800' 
-                      : 'text-purple-700 bg-purple-100 hover:bg-purple-200'
-                  } rounded mr-2`}
-                >
-                  <Shuffle size={16} className="mr-1" />
-                  Shuffle
-                </button>
-              )}
+          {/* Shift Interval */}
+          <div>
+            <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
+              <Clock className="inline-block mr-1 mb-0.5" size={16} />
+              How long should each shift be?
+            </label>
+            <div className="relative">
+              <select
+                value={timeRange.isCustomInterval ? 'custom' : timeRange.interval}
+                onChange={(e) => handleTimeChange('interval', e.target.value)}
+                className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded appearance-none'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+              >
+                <option value="20">20 minutes</option>
+                <option value="25">25 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="custom">Custom</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                <ChevronDown size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
+              </div>
             </div>
             
-            {schedule.length > 0 ? (
+            {/* Custom interval input */}
+            {timeRange.isCustomInterval && (
+              <div className="mt-2">
+                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-1 ${audioMode ? 'eight-bit-text' : ''}`}>
+                  Custom shift length (minutes)
+                </label>
+                <input
+                  type="number"
+                  min="5"
+                  max="120"
+                  value={timeRange.customInterval}
+                  onChange={(e) => handleTimeChange('customInterval', e.target.value)}
+                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                />
+              </div>
+            )}
+          </div>
+          
+          {/* Scriptural Point (SMPW Mode only) */}
+          {smpwMode && (
+            <div>
+              <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
+                <Info className="inline-block mr-1 mb-0.5" size={16} />
+                Share your Scriptural Point (Optional)
+              </label>
+              <textarea
+                value={scripturalPoint}
+                onChange={(e) => setScripturalPoint(e.target.value)}
+                placeholder="Enter a scriptural discussion point..."
+                rows="3"
+                className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+              />
+            </div>
+          )}
+          
+          {/* Volunteers - Improved spacing for mobile */}
+          <div>
+            <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
+              <Users className="inline-block mr-1 mb-0.5" size={16} />
+              Volunteers {multipleLocations && <span className="text-xs font-normal ml-1">
+                (min 4 required for multiple locations)
+              </span>}
+            </label>
+            <div className="space-y-2">
+              {volunteers.map((volunteer, index) => (
+                <input
+                  key={index}
+                  type="text"
+                  value={volunteer}
+                  onChange={(e) => handleVolunteerChange(index, e.target.value)}
+                  placeholder={`Volunteer ${index + 1}`}
+                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                />
+              ))}
+            </div>
+            <button
+              onClick={addVolunteer}
+              className={`mt-3 inline-flex items-center px-3 py-2 text-sm font-medium ${
+                darkMode 
+                  ? 'text-indigo-300 bg-indigo-900 hover:bg-indigo-800' 
+                  : 'text-indigo-600 bg-indigo-100 hover:bg-indigo-200'
+              } ${audioMode ? 'eight-bit-button' : 'rounded'}`}
+            >
+              <Plus size={16} className="mr-1" />
+              Add Volunteer
+            </button>
+          </div>
+          
+          {/* Generate Button - Increased touch target for mobile */}
+          <button
+            onClick={generateSchedule}
+            disabled={isLoading}
+            className={`w-full py-3 px-4 bg-indigo-600 text-white font-medium ${audioMode ? 'eight-bit-button' : 'rounded-md'} hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center justify-center text-base`}
+          >
+            {isLoading ? (
               <>
-                {conflicts.length > 0 && (
-                  <div className={`mb-4 p-3 ${darkMode ? 'bg-yellow-900 border-yellow-800 text-yellow-200' : 'bg-yellow-50 border-yellow-200 text-yellow-800'} border rounded-md text-sm flex items-start`}>
-                    <AlertTriangle size={16} className="mr-2 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-medium">Warning: Schedule has conflicts</p>
-                      <p>The highlighted cells indicate volunteers working back-to-back shifts.</p>
+                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Generating...
+              </>
+            ) : "Generate Schedule"}
+          </button>
+        </div>
+      </div>
+      
+      {/* Schedule Panel - Improved for mobile */}
+      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} p-4 sm:p-6 ${audioMode ? 'eight-bit-panel' : 'rounded-lg'} shadow`}>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'} flex items-center ${audioMode ? 'eight-bit-heading' : ''}`}>
+            <Calendar className={`mr-2 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} size={20} />
+            Schedule
+          </h2>
+          
+          {schedule.length > 0 && (
+            <button
+              onClick={shuffleSchedule}
+              disabled={isLoading}
+              className={`inline-flex items-center px-3 py-1 text-sm font-medium ${
+                darkMode 
+                  ? 'text-purple-300 bg-purple-900 hover:bg-purple-800' 
+                  : 'text-purple-700 bg-purple-100 hover:bg-purple-200'
+              } ${audioMode ? 'eight-bit-button' : 'rounded'} mr-2`}
+            >
+              <Shuffle size={16} className="mr-1" />
+              Shuffle
+            </button>
+          )}
+        </div>
+        
+        {schedule.length > 0 ? (
+          <>
+            {conflicts.length > 0 && (
+              <div className={`mb-4 p-3 ${darkMode ? 'bg-yellow-900 border-yellow-800 text-yellow-200' : 'bg-yellow-50 border-yellow-200 text-yellow-800'} border ${audioMode ? 'eight-bit-box' : 'rounded-md'} text-sm flex items-start`}>
+                <AlertTriangle size={16} className="mr-2 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className={`font-medium ${audioMode ? 'eight-bit-text' : ''}`}>Warning: Schedule has conflicts</p>
+                  <p className={audioMode ? 'eight-bit-text' : ''}>The highlighted cells indicate volunteers working back-to-back shifts.</p>
+                </div>
+              </div>
+            )}
+            
+            {/* Volunteer Summary */}
+            {schedule.length > 0 && (
+              <div className={`mb-4 p-3 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} ${audioMode ? 'eight-bit-box' : 'rounded-md'}`}>
+                <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>Volunteer Shifts</h3>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(schedule[0].shiftCounts || {}).map(([volunteerId, count], index) => (
+                    <div 
+                      key={index}
+                      className={`px-2 py-1 ${audioMode ? 'eight-bit-box' : 'rounded'} text-sm inline-flex items-center justify-center`}
+                      style={{ 
+                        backgroundColor: colors[volunteerId]?.bg || 'transparent',
+                        color: colors[volunteerId]?.text || 'inherit',
+                        ...(audioMode ? { border: '2px solid #000' } : {})
+                      }}
+                    >
+                      {volunteerMap[volunteerId] || volunteerId}: {count}
                     </div>
-                  </div>
-                )}
-                
-                {/* Volunteer Summary */}
-                {schedule.length > 0 && (
-                  <div className={`mb-4 p-3 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-md`}>
-                    <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'} mb-2`}>Volunteer Shifts</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(schedule[0].shiftCounts || {}).map(([volunteerId, count], index) => (
-                        <div 
-                          key={index}
-                          className="px-2 py-1 rounded text-sm inline-flex items-center justify-center"
-                          style={{ 
-                            backgroundColor: colors[volunteerId]?.bg || 'transparent',
-                            color: colors[volunteerId]?.text || 'inherit',
-                          }}
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Schedule Table - Different display for multiple locations */}
+            {multipleLocations ? (
+              // Multiple locations schedule table
+              <div className={`overflow-x-auto overflow-y-auto max-h-80 sm:max-h-96 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} ${audioMode ? 'eight-bit-box' : 'rounded-md'}`}>
+                <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                  <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} sticky top-0`}>
+                    <tr>
+                      <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider ${audioMode ? 'eight-bit-text' : ''}`}>
+                        Time
+                      </th>
+                      {locationNames.map((name, locIndex) => (
+                        <th 
+                          key={locIndex} 
+                          colSpan={2}
+                          className={`px-2 sm:px-3 py-2 text-center text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider ${audioMode ? 'eight-bit-text' : ''}`}
                         >
-                          {volunteerMap[volunteerId] || volunteerId}: {count}
-                        </div>
+                          {name}
+                        </th>
                       ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Schedule Table - Different display for multiple locations */}
-                {multipleLocations ? (
-                  // Multiple locations schedule table
-                  <div className={`overflow-x-auto overflow-y-auto max-h-80 sm:max-h-96 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} rounded-md`}>
-                    <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-                      <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} sticky top-0`}>
-                        <tr>
-                          <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                            Time
-                          </th>
-                          {locationNames.map((name, locIndex) => (
-                            <th 
-                              key={locIndex} 
-                              colSpan={2}
-                              className={`px-2 sm:px-3 py-2 text-center text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}
-                            >
-                              {name}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className={`${darkMode ? 'bg-gray-800' : 'bg-white'} divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-                        {schedule.map((slot, slotIndex) => (
-                          <tr key={slotIndex} className={`${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
-                            <td className={`px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
-                              {slot.display12}
-                            </td>
-                            
-                            {slot.locations.map((location, locIndex) => (
-                              // For each location, render 2 volunteer columns
-                              <React.Fragment key={locIndex}>
-                                {[0, 1].map(volIndex => {
-                                  const volunteerId = location.volunteers[volIndex];
-                                  const displayName = volunteerMap[volunteerId] || '';
-                                  const hasConflict = conflicts.some(c => 
-                                    c.slotIndex === slotIndex && 
-                                    c.locationIndex === locIndex && 
-                                    c.volunteer === volunteerId
-                                  );
-                                  const hasDuplicateError = duplicateError && 
-                                    duplicateError.slotIndex === slotIndex && 
-                                    duplicateError.locationIndex === locIndex;
-                                  
-                                  return (
-                                    <td key={volIndex} className="px-1 sm:px-2 py-2 whitespace-nowrap text-xs sm:text-sm">
-                                      <div className={`rounded ${hasConflict ? (darkMode ? 'bg-red-900' : 'bg-red-50') : ''} ${hasDuplicateError ? (darkMode ? 'border border-red-700' : 'border border-red-300') : ''}`}>
-                                        <select
-                                          value={volunteerId || ''}
-                                          onChange={(e) => updateScheduleVolunteer(slotIndex, volIndex, e.target.value, locIndex)}
-                                          className={`w-full py-1 px-2 rounded border-0 focus:ring-0 text-xs sm:text-sm ${darkMode ? 'bg-gray-700 text-white' : ''}`}
-                                          style={{
-                                            backgroundColor: volunteerId ? colors[volunteerId]?.bg : (darkMode ? '#1F2937' : 'transparent'),
-                                            color: volunteerId ? colors[volunteerId]?.text : 'inherit'
-                                          }}
-                                        >
-                                          <option value="" className={darkMode ? 'bg-gray-700' : ''}>Select volunteer</option>
-                                          {Object.keys(volunteerMap).map((id) => (
-                                            <option key={id} value={id} className={darkMode ? 'bg-gray-700' : ''}>{volunteerMap[id]}</option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                      
-                                      {hasConflict && (
-                                        <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
-                                          Back-to-back shift
-                                        </div>
-                                      )}
-                                      
-                                      {hasDuplicateError && volIndex === 0 && (
-                                        <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
-                                          {duplicateError.message}
-                                        </div>
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                              </React.Fragment>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  // Original single location schedule table
-                  <div className={`overflow-x-auto overflow-y-auto max-h-80 sm:max-h-96 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} rounded-md`}>
-                    <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-                      <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} sticky top-0`}>
-                        <tr>
-                          <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                            Time
-                          </th>
-                          <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                            Vol 1
-                          </th>
-                          <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                            Vol 2
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className={`${darkMode ? 'bg-gray-800' : 'bg-white'} divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-                        {schedule.map((slot, slotIndex) => (
-                          <tr key={slotIndex} className={`${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
-                            <td className={`px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-900'}`}>
-                              {slot.display12}
-                            </td>
+                    </tr>
+                  </thead>
+                  <tbody className={`${darkMode ? 'bg-gray-800' : 'bg-white'} divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                    {schedule.map((slot, slotIndex) => (
+                      <tr key={slotIndex} className={`${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                        <td className={`px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-900'} ${audioMode ? 'eight-bit-text' : ''}`}>
+                          {slot.display12}
+                        </td>
+                        
+                        {slot.locations.map((location, locIndex) => (
+                          // For each location, render 2 volunteer columns
+                          <React.Fragment key={locIndex}>
                             {[0, 1].map(volIndex => {
-                              const volunteerId = slot.volunteers[volIndex];
+                              const volunteerId = location.volunteers[volIndex];
                               const displayName = volunteerMap[volunteerId] || '';
                               const hasConflict = conflicts.some(c => 
-                                c.slotIndex === slotIndex && c.volunteer === volunteerId
+                                c.slotIndex === slotIndex && 
+                                c.locationIndex === locIndex && 
+                                c.volunteer === volunteerId
                               );
                               const hasDuplicateError = duplicateError && 
-                                                        duplicateError.slotIndex === slotIndex;
+                                duplicateError.slotIndex === slotIndex && 
+                                duplicateError.locationIndex === locIndex;
                               
                               return (
-                                <td key={volIndex} className="px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm">
-                                  <div className={`rounded ${hasConflict ? (darkMode ? 'bg-red-900' : 'bg-red-50') : ''} ${hasDuplicateError ? (darkMode ? 'border border-red-700' : 'border border-red-300') : ''}`}>
+                                <td key={volIndex} className="px-1 sm:px-2 py-2 whitespace-nowrap text-xs sm:text-sm">
+                                  <div className={`${audioMode ? '' : 'rounded'} ${hasConflict ? (darkMode ? 'bg-red-900' : 'bg-red-50') : ''} ${hasDuplicateError ? (darkMode ? 'border border-red-700' : 'border border-red-300') : ''}`}>
                                     <select
                                       value={volunteerId || ''}
-                                      onChange={(e) => updateScheduleVolunteer(slotIndex, volIndex, e.target.value)}
-                                      className={`w-full py-1 px-2 rounded border-0 focus:ring-0 text-xs sm:text-sm ${darkMode ? 'bg-gray-700 text-white' : ''}`}
+                                      onChange={(e) => updateScheduleVolunteer(slotIndex, volIndex, e.target.value, locIndex)}
+                                      className={`w-full py-1 px-2 ${audioMode ? 'eight-bit-button' : 'rounded border-0'} focus:ring-0 text-xs sm:text-sm ${darkMode ? 'bg-gray-700 text-white' : ''}`}
                                       style={{
                                         backgroundColor: volunteerId ? colors[volunteerId]?.bg : (darkMode ? '#1F2937' : 'transparent'),
                                         color: volunteerId ? colors[volunteerId]?.text : 'inherit'
@@ -2693,58 +2777,130 @@ const ScheduleBuilder = () => {
                                   </div>
                                   
                                   {hasConflict && (
-                                    <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
+                                    <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1 ${audioMode ? 'eight-bit-text' : ''}`}>
                                       Back-to-back shift
                                     </div>
                                   )}
                                   
                                   {hasDuplicateError && volIndex === 0 && (
-                                    <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1`}>
+                                    <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1 ${audioMode ? 'eight-bit-text' : ''}`}>
                                       {duplicateError.message}
                                     </div>
                                   )}
                                 </td>
                               );
                             })}
-                          </tr>
+                          </React.Fragment>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-                
-                {/* Finished Button - Larger for better mobile touch target */}
-                <div className="mt-4 flex justify-center">
-                  <button
-                    onClick={enterScreenshotMode}
-                    className="inline-flex items-center px-5 py-2 text-base font-medium text-white bg-green-600 rounded hover:bg-green-700"
-                  >
-                    <Camera size={18} className="mr-2" />
-                    Finished
-                  </button>
-                </div>
-              </>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
-              <div className={`flex flex-col items-center justify-center h-52 md:h-64 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                <Calendar size={48} className="mb-4 opacity-30" />
-                <p>No schedule generated yet</p>
-                <p className="text-sm">Fill in the setup form and click Generate</p>
+              // Original single location schedule table
+              <div className={`overflow-x-auto overflow-y-auto max-h-80 sm:max-h-96 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} ${audioMode ? 'eight-bit-box' : 'rounded-md'}`}>
+                <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                  <thead className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} sticky top-0`}>
+                    <tr>
+                      <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider ${audioMode ? 'eight-bit-text' : ''}`}>
+                        Time
+                      </th>
+                      <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider ${audioMode ? 'eight-bit-text' : ''}`}>
+                        Vol 1
+                      </th>
+                      <th className={`px-2 sm:px-3 py-2 text-left text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider ${audioMode ? 'eight-bit-text' : ''}`}>
+                        Vol 2
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className={`${darkMode ? 'bg-gray-800' : 'bg-white'} divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                    {schedule.map((slot, slotIndex) => (
+                      <tr key={slotIndex} className={`${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
+                        <td className={`px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-900'} ${audioMode ? 'eight-bit-text' : ''}`}>
+                          {slot.display12}
+                        </td>
+                        {[0, 1].map(volIndex => {
+                          const volunteerId = slot.volunteers[volIndex];
+                          const displayName = volunteerMap[volunteerId] || '';
+                          const hasConflict = conflicts.some(c => 
+                            c.slotIndex === slotIndex && c.volunteer === volunteerId
+                          );
+                          const hasDuplicateError = duplicateError && 
+                                                    duplicateError.slotIndex === slotIndex;
+                          
+                          return (
+                            <td key={volIndex} className="px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm">
+                              <div className={`${audioMode ? '' : 'rounded'} ${hasConflict ? (darkMode ? 'bg-red-900' : 'bg-red-50') : ''} ${hasDuplicateError ? (darkMode ? 'border border-red-700' : 'border border-red-300') : ''}`}>
+                                <select
+                                  value={volunteerId || ''}
+                                  onChange={(e) => updateScheduleVolunteer(slotIndex, volIndex, e.target.value)}
+                                  className={`w-full py-1 px-2 ${audioMode ? 'eight-bit-button' : 'rounded border-0'} focus:ring-0 text-xs sm:text-sm ${darkMode ? 'bg-gray-700 text-white' : ''}`}
+                                  style={{
+                                    backgroundColor: volunteerId ? colors[volunteerId]?.bg : (darkMode ? '#1F2937' : 'transparent'),
+                                    color: volunteerId ? colors[volunteerId]?.text : 'inherit'
+                                  }}
+                                >
+                                  <option value="" className={darkMode ? 'bg-gray-700' : ''}>Select volunteer</option>
+                                  {Object.keys(volunteerMap).map((id) => (
+                                    <option key={id} value={id} className={darkMode ? 'bg-gray-700' : ''}>{volunteerMap[id]}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              
+                              {hasConflict && (
+                                <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1 ${audioMode ? 'eight-bit-text' : ''}`}>
+                                  Back-to-back shift
+                                </div>
+                              )}
+                              
+                              {hasDuplicateError && volIndex === 0 && (
+                                <div className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-600'} mt-1 ${audioMode ? 'eight-bit-text' : ''}`}>
+                                  {duplicateError.message}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
+            
+            {/* Finished Button - Larger for better mobile touch target */}
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={enterScreenshotMode}
+                className={`inline-flex items-center px-5 py-2 text-base font-medium text-white bg-green-600 ${audioMode ? 'eight-bit-button' : 'rounded'} hover:bg-green-700`}
+              >
+                <Camera size={18} className="mr-2" />
+                Finished
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className={`flex flex-col items-center justify-center h-52 md:h-64 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            <Calendar size={48} className="mb-4 opacity-30" />
+            <p className={audioMode ? 'eight-bit-text' : ''}>No schedule generated yet</p>
+            <p className={`text-sm ${audioMode ? 'eight-bit-text' : ''}`}>Fill in the setup form and click Generate</p>
           </div>
-        </div>
-      </main>
-      
-      <footer className={`mt-6 py-4 border-t ${darkMode ? 'border-gray-800 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
-        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center text-center text-xs">
-          <div>v.1.3.2</div>
-          <div className={`mt-1 sm:mt-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-            {schedulesGenerated.toLocaleString()} schedules made with this tool
-          </div>
-        </div>
-      </footer>
+        )}
+      </div>
     </div>
-  );
+  </main>
+  
+  <footer className={`mt-6 py-4 border-t ${darkMode ? 'border-gray-800 text-gray-400' : 'border-gray-200 text-gray-500'} ${audioMode ? 'eight-bit-footer' : ''}`}>
+    <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center text-center text-xs">
+      <div className={audioMode ? 'eight-bit-text' : ''}>v 1.4.1 {audioMode && "8-BIT MODE"}</div>
+      <div className={`mt-1 sm:mt-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'} ${audioMode ? 'eight-bit-text' : ''}`}>
+        {schedulesGenerated.toLocaleString()} schedules made with this tool
+      </div>
+    </div>
+  </footer>
+</div>
+);
 };
 
 export default ScheduleBuilder;

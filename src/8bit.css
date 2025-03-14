@@ -1,0 +1,187 @@
+/* 8-bit.css - Custom 8-bit styling for audio mode */
+
+/* Import the Press Start 2P font */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+/* Base 8-bit styles */
+.eight-bit-mode * {
+  font-family: 'Press Start 2P', cursive !important;
+  letter-spacing: 0.05em;
+  line-height: 1.5;
+  image-rendering: pixelated;
+}
+
+/* NES-inspired color palette adjustments */
+.eight-bit-mode.dark {
+  --primary-color: #0058F8;
+  --secondary-color: #D03800;
+  --accent-color: #00A844;
+  --background-color: #000084;
+  --text-color: #FCFCFC;
+  --border-color: #F8B800;
+}
+
+.eight-bit-mode:not(.dark) {
+  --primary-color: #0058F8;
+  --secondary-color: #D03800;
+  --accent-color: #00A844;
+  --background-color: #F8F8F8;
+  --text-color: #000000;
+  --border-color: #000000;
+}
+
+/* Main container styles */
+.eight-bit-container {
+  image-rendering: pixelated;
+}
+
+/* Button styles - no rounded edges, only square and pixelated */
+.eight-bit-button,
+.eight-bit-mode button,
+.eight-bit-mode select,
+.eight-bit-mode input {
+  border-radius: 0 !important;
+  box-shadow: 4px 4px 0 #000 !important;
+  border: 4px solid #000 !important;
+  transition: all 0.1s;
+  transform: translateZ(0);
+}
+
+.eight-bit-mode button:active,
+.eight-bit-mode select:active,
+.eight-bit-mode input:active,
+.eight-bit-button:active {
+  transform: translate(4px, 4px) !important;
+  box-shadow: none !important;
+}
+
+/* Text styles */
+.eight-bit-text,
+.eight-bit-mode h1,
+.eight-bit-mode h2,
+.eight-bit-mode h3,
+.eight-bit-mode h4,
+.eight-bit-mode p {
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+  margin-bottom: 1rem;
+}
+
+/* Heading styles */
+.eight-bit-heading {
+  border-bottom: 4px solid #000;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Panel and container styles */
+.eight-bit-panel,
+.eight-bit-mode .rounded-lg {
+  border-radius: 0 !important;
+  border: 4px solid #000 !important;
+  box-shadow: 8px 8px 0 rgba(0,0,0,0.5) !important;
+}
+
+/* Header styles */
+.eight-bit-header {
+  border-bottom: 4px solid #000;
+  background: repeating-linear-gradient(
+    to right,
+    var(--primary-color),
+    var(--primary-color) 50px,
+    var(--secondary-color) 50px,
+    var(--secondary-color) 100px
+  ) !important;
+}
+
+/* Footer styles */
+.eight-bit-footer {
+  border-top: 4px solid #000 !important;
+}
+
+/* Table styles */
+.eight-bit-mode table,
+.eight-bit-mode th,
+.eight-bit-mode td {
+  border: 2px solid #000 !important;
+}
+
+.eight-bit-mode th {
+  background-color: #000 !important;
+  color: #fff !important;
+}
+
+/* Add a scanline effect overlay */
+.scanline-effect {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 100000;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.1),
+    rgba(0, 0, 0, 0.1) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+}
+
+/* Overrides for specific elements */
+.eight-bit-mode .form-control,
+.eight-bit-mode input,
+.eight-bit-mode select,
+.eight-bit-mode textarea {
+  border-radius: 0 !important;
+  border-width: 2px !important;
+}
+
+/* Modified color boxes for the schedule */
+.eight-bit-mode [style*="border-radius"] {
+  border-radius: 0 !important;
+}
+
+/* Pixel-perfect borders */
+.eight-bit-mode .border,
+.eight-bit-mode .border-t,
+.eight-bit-mode .border-b,
+.eight-bit-mode .border-l,
+.eight-bit-mode .border-r {
+  border-width: 2px !important;
+}
+
+/* 8-bit animation for hover effects */
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.eight-bit-mode button:hover,
+.eight-bit-mode a:hover {
+  animation: blink 0.5s infinite;
+}
+
+/* Special 8-bit box for alert components */
+.eight-bit-box {
+  border: 4px solid #fff;
+  border-radius: 0 !important;
+  box-shadow: 8px 8px 0 rgba(0,0,0,0.5);
+  image-rendering: pixelated;
+}
+
+/* 8-bit mode for screenshots */
+.eight-bit-mode .download-btn,
+.eight-bit-mode .copy-btn {
+  border-radius: 0 !important;
+  border: 4px solid #000 !important;
+  box-shadow: 4px 4px 0 #000 !important;
+}
+
+/* Handle modals in 8-bit mode */
+.eight-bit-mode .fixed.inset-0.flex.items-center.justify-center > div {
+  border-radius: 0 !important;
+  border: 4px solid #000 !important;
+  box-shadow: 8px 8px 0 rgba(0,0,0,0.5) !important;
+}
