@@ -1,187 +1,204 @@
-/* 8-bit.css - Custom 8-bit styling for audio mode */
-
-/* Import the Press Start 2P font */
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-
-/* Base 8-bit styles */
-.eight-bit-mode * {
-  font-family: 'Press Start 2P', cursive !important;
-  letter-spacing: 0.05em;
-  line-height: 1.5;
+/* 8-bit mode styles */
+.eight-bit-mode {
+  font-family: 'Press Start 2P', cursive;
   image-rendering: pixelated;
 }
 
-/* NES-inspired color palette adjustments */
-.eight-bit-mode.dark {
-  --primary-color: #0058F8;
-  --secondary-color: #D03800;
-  --accent-color: #00A844;
-  --background-color: #000084;
-  --text-color: #FCFCFC;
-  --border-color: #F8B800;
-}
-
-.eight-bit-mode:not(.dark) {
-  --primary-color: #0058F8;
-  --secondary-color: #D03800;
-  --accent-color: #00A844;
-  --background-color: #F8F8F8;
-  --text-color: #000000;
-  --border-color: #000000;
-}
-
-/* Main container styles */
 .eight-bit-container {
   image-rendering: pixelated;
 }
 
-/* Button styles - no rounded edges, only square and pixelated */
-.eight-bit-button,
-.eight-bit-mode button,
-.eight-bit-mode select,
-.eight-bit-mode input {
-  border-radius: 0 !important;
-  box-shadow: 4px 4px 0 #000 !important;
-  border: 4px solid #000 !important;
-  transition: all 0.1s;
-  transform: translateZ(0);
+.eight-bit-text {
+  font-family: 'Press Start 2P', cursive;
+  /* Smaller font size to prevent overflow */
+  font-size: 0.85em;
+  line-height: 1.5;
 }
 
-.eight-bit-mode button:active,
-.eight-bit-mode select:active,
-.eight-bit-mode input:active,
-.eight-bit-button:active {
-  transform: translate(4px, 4px) !important;
-  box-shadow: none !important;
-}
-
-/* Text styles */
-.eight-bit-text,
-.eight-bit-mode h1,
-.eight-bit-mode h2,
-.eight-bit-mode h3,
-.eight-bit-mode h4,
-.eight-bit-mode p {
-  text-shadow: 2px 2px 0 rgba(0,0,0,0.2);
-  margin-bottom: 1rem;
-}
-
-/* Heading styles */
 .eight-bit-heading {
-  border-bottom: 4px solid #000;
-  padding-bottom: 0.5rem;
-  margin-bottom: 1rem;
+  font-family: 'Press Start 2P', cursive;
+  text-transform: uppercase;
 }
 
-/* Panel and container styles */
-.eight-bit-panel,
-.eight-bit-mode .rounded-lg {
-  border-radius: 0 !important;
-  border: 4px solid #000 !important;
-  box-shadow: 8px 8px 0 rgba(0,0,0,0.5) !important;
+.eight-bit-button {
+  font-family: 'Press Start 2P', cursive;
+  border: 2px solid #000;
+  padding: 8px;
+  text-transform: uppercase;
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.8);
+  transition: all 0.05s linear;
+  transform: translateY(0);
 }
 
-/* Header styles */
+.eight-bit-button:active {
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.8);
+  transform: translateY(2px) translateX(2px);
+}
+
+.eight-bit-button:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+  transform: none;
+}
+
+.eight-bit-checkbox {
+  transform: scale(1.5);
+  margin: 0 0.5rem;
+}
+
+.eight-bit-panel {
+  border: 4px solid #000;
+  box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.5);
+}
+
+.eight-bit-box {
+  border: 2px solid #000;
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.5);
+}
+
 .eight-bit-header {
   border-bottom: 4px solid #000;
-  background: repeating-linear-gradient(
-    to right,
-    var(--primary-color),
-    var(--primary-color) 50px,
-    var(--secondary-color) 50px,
-    var(--secondary-color) 100px
-  ) !important;
 }
 
-/* Footer styles */
 .eight-bit-footer {
-  border-top: 4px solid #000 !important;
+  border-top: 4px solid #000;
 }
 
-/* Table styles */
-.eight-bit-mode table,
+/* Form element styling - FIXED to respect dark mode */
+.eight-bit-mode input,
+.eight-bit-mode select,
+.eight-bit-mode textarea {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.7rem;
+  border: 2px solid #000;
+  padding: 8px;
+  /* Removed explicit background color to respect dark mode */
+}
+
+/* Dark mode specific overrides */
+.dark .eight-bit-mode input,
+.dark .eight-bit-mode select,
+.dark .eight-bit-mode textarea {
+  border-color: #4a5568;
+  background-color: #2d3748; /* Dark background for form elements */
+  color: white;
+}
+
+.dark .eight-bit-mode select option {
+  background-color: #2d3748; /* Dark background for dropdown options */
+  color: white;
+}
+
+.dark .eight-bit-button {
+  border-color: #4a5568;
+}
+
+.eight-bit-mode input:focus,
+.eight-bit-mode select:focus,
+.eight-bit-mode textarea:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.3);
+}
+
+/* Table styling */
+.eight-bit-mode table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 2px solid #000;
+}
+
+.dark .eight-bit-mode table {
+  border-color: #4a5568;
+}
+
 .eight-bit-mode th,
 .eight-bit-mode td {
-  border: 2px solid #000 !important;
+  border: 2px solid #000;
+  padding: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px; /* Set a maximum width */
 }
 
-.eight-bit-mode th {
-  background-color: #000 !important;
-  color: #fff !important;
+.dark .eight-bit-mode th,
+.dark .eight-bit-mode td {
+  border-color: #4a5568;
 }
 
-/* Add a scanline effect overlay */
+/* Make time column use CONSISTENT font size in 8-bit mode */
+.eight-bit-mode td:first-child {
+  font-size: 7px !important; /* Force consistent small font for all time entries */
+}
+
+/* Also apply to the ScreenshotView component */
+.eight-bit-mode [ref="scheduleRef"] table td:first-child {
+  font-size: 7px !important;
+}
+
+/* Scanline effect */
 .scanline-effect {
+  pointer-events: none;
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 100000;
-  pointer-events: none;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
   background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.1),
-    rgba(0, 0, 0, 0.1) 1px,
+    to bottom,
+    rgba(0, 0, 0, 0.05),
+    rgba(0, 0, 0, 0.05) 1px,
     transparent 1px,
     transparent 2px
   );
 }
 
-/* Overrides for specific elements */
-.eight-bit-mode .form-control,
-.eight-bit-mode input,
+/* Dark mode scanlines - slightly lighter */
+.dark .scanline-effect {
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.03),
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+}
+
+/* Fix for text overflow in 8-bit mode tables */
 .eight-bit-mode select,
-.eight-bit-mode textarea {
-  border-radius: 0 !important;
-  border-width: 2px !important;
+.eight-bit-mode option {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 
-/* Modified color boxes for the schedule */
-.eight-bit-mode [style*="border-radius"] {
-  border-radius: 0 !important;
+/* Animation effects */
+@keyframes pixel-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
-/* Pixel-perfect borders */
-.eight-bit-mode .border,
-.eight-bit-mode .border-t,
-.eight-bit-mode .border-b,
-.eight-bit-mode .border-l,
-.eight-bit-mode .border-r {
-  border-width: 2px !important;
+.eight-bit-blink {
+  animation: pixel-blink 1s steps(2) infinite;
 }
 
-/* 8-bit animation for hover effects */
-@keyframes blink {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
-}
-
-.eight-bit-mode button:hover,
-.eight-bit-mode a:hover {
-  animation: blink 0.5s infinite;
-}
-
-/* Special 8-bit box for alert components */
-.eight-bit-box {
-  border: 4px solid #fff;
-  border-radius: 0 !important;
-  box-shadow: 8px 8px 0 rgba(0,0,0,0.5);
-  image-rendering: pixelated;
-}
-
-/* 8-bit mode for screenshots */
-.eight-bit-mode .download-btn,
-.eight-bit-mode .copy-btn {
-  border-radius: 0 !important;
-  border: 4px solid #000 !important;
-  box-shadow: 4px 4px 0 #000 !important;
-}
-
-/* Handle modals in 8-bit mode */
-.eight-bit-mode .fixed.inset-0.flex.items-center.justify-center > div {
-  border-radius: 0 !important;
-  border: 4px solid #000 !important;
-  box-shadow: 8px 8px 0 rgba(0,0,0,0.5) !important;
+/* Mobile responsive tweaks */
+@media (max-width: 640px) {
+  .eight-bit-text {
+    font-size: 0.7em;
+  }
+  
+  .eight-bit-button {
+    padding: 6px;
+    font-size: 0.7em;
+  }
+  
+  .eight-bit-mode td,
+  .eight-bit-mode th {
+    padding: 4px;
+    max-width: 80px;
+  }
 }

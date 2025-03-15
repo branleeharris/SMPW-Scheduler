@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Clock, Users, Calendar, ChevronDown, Plus, AlertTriangle, Camera, X, Smartphone, Download, Info, Shuffle, Building, Sun, Moon, Copy, Check, AlertCircle, Volume2, VolumeX } from 'lucide-react';
+import { Clock, Users, Calendar, ChevronDown, Plus, AlertTriangle, Camera, X, Smartphone, Download, Info, Shuffle, Building, Sun, Moon, Copy, Check, AlertCircle, Volume2, VolumeX, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { incrementScheduleCounter, getScheduleCount } from './firebase';
 
@@ -18,6 +18,7 @@ const ScheduleBuilder = () => {
     customInterval: 30,
     date: new Date().toISOString().split('T')[0]
   });
+  const [dateEnabled, setDateEnabled] = useState(false); // New state for optional date
   const [schedule, setSchedule] = useState([]);
   const [colors, setColors] = useState({});
   const [conflicts, setConflicts] = useState([]);
@@ -152,6 +153,11 @@ const ScheduleBuilder = () => {
     }
   }, [darkMode, volunteerMap]);
   
+  // Toggle date enabled
+  const toggleDateEnabled = () => {
+    setDateEnabled(prev => !prev);
+  };
+  
   // Handle title click for Easter egg
   const handleTitleClick = () => {
     const currentTime = new Date().getTime();
@@ -197,6 +203,31 @@ const ScheduleBuilder = () => {
     setVolunteers(newVolunteers);
   };
   
+  // Delete volunteer entry
+  const deleteVolunteer = (index) => {
+    // Prevent deletion if only 2 volunteers remain
+    if (volunteers.length <= 2) {
+      return;
+    }
+    
+    const newVolunteers = [...volunteers];
+    newVolunteers.splice(index, 1);
+    setVolunteers(newVolunteers);
+  };
+  
+  // Calculate end time 4 hours after start time
+  const calculateEndTime = (startTime) => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    let endHours = hours + 4;
+    
+    // Handle day overflow
+    if (endHours >= 24) {
+      endHours = endHours - 24;
+    }
+    
+    return `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  };
+  
   // Handle time range changes
   const handleTimeChange = (field, value) => {
     if (field === 'interval') {
@@ -217,6 +248,14 @@ const ScheduleBuilder = () => {
         ...prev, 
         customInterval: parseInt(value),
         interval: parseInt(value)
+      }));
+    } else if (field === 'startTime') {
+      // Auto-calculate end time when start time changes
+      const newEndTime = calculateEndTime(value);
+      setTimeRange(prev => ({ 
+        ...prev, 
+        startTime: value,
+        endTime: newEndTime 
       }));
     } else {
       setTimeRange(prev => ({ ...prev, [field]: value }));
@@ -814,6 +853,20 @@ const ScheduleBuilder = () => {
     }, 300);
   };
   
+  // Check if we should increment the counter (once per hour)
+  const shouldIncrementCounter = () => {
+    const lastGenTime = localStorage.getItem('lastScheduleGeneration');
+    const currentTime = new Date().getTime();
+    
+    // If no previous generation or it was more than an hour ago
+    if (!lastGenTime || (currentTime - parseInt(lastGenTime) > 3600000)) {
+      localStorage.setItem('lastScheduleGeneration', currentTime.toString());
+      return true;
+    }
+    
+    return false;
+  };
+  
   // Generate the schedule
   const generateSchedule = () => {
     const filteredVolunteers = volunteers.filter(v => v.trim() !== '');
@@ -885,27 +938,30 @@ const ScheduleBuilder = () => {
       setConflicts([]);
       setIsLoading(false);
       
-      // Increment the counter in Firebase with error handling
-      try {
-        incrementScheduleCounter()
-          .then(newCount => {
-            if (newCount !== null) {
-              setSchedulesGenerated(newCount);
-            }
-          })
-          .catch(error => {
-            console.error("Error incrementing counter:", error);
-            // Fallback to local storage if Firebase fails
-            const newLocalCount = schedulesGenerated + 1;
-            setSchedulesGenerated(newLocalCount);
-            localStorage.setItem('schedulesGenerated', newLocalCount.toString());
-          });
-      } catch (error) {
-        console.error("Error with counter function:", error);
-        // Fallback to local storage if Firebase fails
-        const newLocalCount = schedulesGenerated + 1;
-        setSchedulesGenerated(newLocalCount);
-        localStorage.setItem('schedulesGenerated', newLocalCount.toString());
+      // Check if we should increment counter (hourly limit)
+      if (shouldIncrementCounter()) {
+        // Increment the counter in Firebase with error handling
+        try {
+          incrementScheduleCounter()
+            .then(newCount => {
+              if (newCount !== null) {
+                setSchedulesGenerated(newCount);
+              }
+            })
+            .catch(error => {
+              console.error("Error incrementing counter:", error);
+              // Fallback to local storage if Firebase fails
+              const newLocalCount = schedulesGenerated + 1;
+              setSchedulesGenerated(newLocalCount);
+              localStorage.setItem('schedulesGenerated', newLocalCount.toString());
+            });
+        } catch (error) {
+          console.error("Error with counter function:", error);
+          // Fallback to local storage if Firebase fails
+          const newLocalCount = schedulesGenerated + 1;
+          setSchedulesGenerated(newLocalCount);
+          localStorage.setItem('schedulesGenerated', newLocalCount.toString());
+        }
       }
     }, 500);
   };
@@ -1163,12 +1219,20 @@ const ScheduleBuilder = () => {
       const displayTitle = locationName ? `${locationName} Schedule` : 'Schedule';
       ctx.fillText(displayTitle, width / 2, config.padding + 20);
       
-      // Draw date/time
+      // Draw date/time - only if date is enabled
       ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
       ctx.fillStyle = config.mutedTextColor;
-      const dateStr = formatDate(timeRange.date);
-      const timeStr = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
-      ctx.fillText(`${dateStr} • ${timeStr}`, width / 2, config.padding + 40);
+      
+      let headerText = '';
+      if (dateEnabled) {
+        const dateStr = formatDate(timeRange.date);
+        const timeStr = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
+        headerText = `${dateStr} • ${timeStr}`;
+      } else {
+        headerText = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
+      }
+      
+      ctx.fillText(headerText, width / 2, config.padding + 40);
       
       // Table dimensions and position
       const tableTop = config.padding + config.headerHeight;
@@ -1247,7 +1311,26 @@ const ScheduleBuilder = () => {
         locationNames.forEach((name, locIndex) => {
           const locX = config.padding + config.timeColumnWidth + (locIndex * config.volunteerColumnWidth);
           ctx.textAlign = 'center';
-          ctx.fillText(name, locX + config.volunteerColumnWidth / 2, tableTop + config.rowHeight / 2 + 5);
+          
+          // Handle 8-bit mode - truncate/resize text if needed
+          let displayName = name;
+          if (audioMode) {
+            // Measure text width
+            const maxWidth = config.volunteerColumnWidth - 10; // Allow some padding
+            const textWidth = ctx.measureText(name).width;
+            
+            // Truncate if too long
+            if (textWidth > maxWidth) {
+              // Try to fit with ellipsis
+              let truncated = name;
+              while (ctx.measureText(truncated + '...').width > maxWidth && truncated.length > 0) {
+                truncated = truncated.slice(0, -1);
+              }
+              displayName = truncated + (truncated.length < name.length ? '...' : '');
+            }
+          }
+          
+          ctx.fillText(displayName, locX + config.volunteerColumnWidth / 2, tableTop + config.rowHeight / 2 + 5);
         });
       } else {
         // Original volunteers header
@@ -1262,10 +1345,11 @@ const ScheduleBuilder = () => {
         const y = tableTop + config.rowHeight + (index * config.rowHeight);
         
         // Time text
-        ctx.fillStyle = config.textColor;
-        ctx.font = `${audioMode ? '8' : '500 12'}px ${config.fontFamily}`;
-        ctx.textAlign = 'left';
-        ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 + 5);
+ctx.fillStyle = config.textColor;
+// Always use the smaller font size for 8-bit mode time column for consistency
+ctx.font = audioMode ? `6px ${config.fontFamily}` : `500 12px ${config.fontFamily}`;
+ctx.textAlign = 'left';
+ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 + 5);
         
         if (multipleLocations) {
           // Draw volunteer boxes for each location
@@ -1309,12 +1393,34 @@ const ScheduleBuilder = () => {
                 ctx.fill();
               }
               
-              // Volunteer text
+              // Volunteer text with truncation for 8-bit mode
               ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
-              ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+              
+              // Handle text sizing in 8-bit mode
+              if (audioMode) {
+                const maxVolWidth = volunteerWidth - 6; // Allow some padding
+                ctx.font = `8px ${config.fontFamily}`;
+                let truncated = displayName;
+                
+                // Measure and truncate if needed
+                if (ctx.measureText(displayName).width > maxVolWidth) {
+                  while (ctx.measureText(truncated + '...').width > maxVolWidth && truncated.length > 0) {
+                    truncated = truncated.slice(0, -1);
+                  }
+                  truncated = truncated + (truncated.length < displayName.length ? '...' : '');
+                }
+                
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(truncated, vx + volunteerWidth / 2, vy + vHeight / 2);
+              } else {
+                // Normal mode
+                ctx.font = `11px ${config.fontFamily}`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+              }
+              
               ctx.textBaseline = 'alphabetic';
             });
           });
@@ -1358,10 +1464,32 @@ const ScheduleBuilder = () => {
             
             // Volunteer text
             ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
-            ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+            
+            // Handle text sizing in 8-bit mode
+            if (audioMode) {
+              const maxVolWidth = volunteerWidth - 6; // Allow some padding
+              ctx.font = `8px ${config.fontFamily}`;
+              let truncated = displayName;
+              
+              // Measure and truncate if needed
+              if (ctx.measureText(displayName).width > maxVolWidth) {
+                while (ctx.measureText(truncated + '...').width > maxVolWidth && truncated.length > 0) {
+                  truncated = truncated.slice(0, -1);
+                }
+                truncated = truncated + (truncated.length < displayName.length ? '...' : '');
+              }
+              
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(truncated, vx + volunteerWidth / 2, vy + vHeight / 2);
+            } else {
+              // Normal mode
+              ctx.font = `11px ${config.fontFamily}`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+            }
+            
             ctx.textBaseline = 'alphabetic';
           });
         }
@@ -1375,12 +1503,28 @@ const ScheduleBuilder = () => {
       let legendX = config.padding;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
       
       volunteers.forEach(volunteerId => {
         const count = shiftCounts[volunteerId];
         const displayName = volunteerMap[volunteerId] || volunteerId;
-        const legendText = `${displayName}:${count}`;
+        
+        // Adjust for 8-bit mode
+        ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
+        
+        // Handle truncation for 8-bit mode
+        let legendText;
+        if (audioMode) {
+          // Keep shorter in 8-bit mode
+          const maxNameLength = 8; // arbitrary limit for legend
+          let truncName = displayName;
+          if (truncName.length > maxNameLength) {
+            truncName = truncName.substring(0, maxNameLength - 1) + '…';
+          }
+          legendText = `${truncName}:${count}`;
+        } else {
+          legendText = `${displayName}:${count}`;
+        }
+        
         const textWidth = ctx.measureText(legendText).width;
         const legendWidth = textWidth + 16;
         const legendHeight = 18;
@@ -1477,7 +1621,7 @@ const ScheduleBuilder = () => {
       const imageUrl = canvas.toDataURL('image/png');
       
       // Create file name
-      const dateString = timeRange.date.replace(/-/g, '');
+      const dateString = dateEnabled ? timeRange.date.replace(/-/g, '') : 'nodate';
       const locationText = locationName ? `${locationName.replace(/\s+/g, '_')}` : 'Volunteer';
       const filename = `${locationText}_Schedule_${dateString}.png`;
       
@@ -1660,12 +1804,20 @@ const ScheduleBuilder = () => {
       const displayTitle = locationName ? `${locationName} Schedule` : 'Schedule';
       ctx.fillText(displayTitle, width / 2, config.padding + 20);
       
-      // Draw date/time
+      // Draw date/time - only if date is enabled
       ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
       ctx.fillStyle = config.mutedTextColor;
-      const dateStr = formatDate(timeRange.date);
-      const timeStr = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
-      ctx.fillText(`${dateStr} • ${timeStr}`, width / 2, config.padding + 40);
+      
+      let headerText = '';
+      if (dateEnabled) {
+        const dateStr = formatDate(timeRange.date);
+        const timeStr = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
+        headerText = `${dateStr} • ${timeStr}`;
+      } else {
+        headerText = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
+      }
+      
+      ctx.fillText(headerText, width / 2, config.padding + 40);
       
       // Table dimensions and position
       const tableTop = config.padding + config.headerHeight;
@@ -1744,7 +1896,26 @@ const ScheduleBuilder = () => {
         locationNames.forEach((name, locIndex) => {
           const locX = config.padding + config.timeColumnWidth + (locIndex * config.volunteerColumnWidth);
           ctx.textAlign = 'center';
-          ctx.fillText(name, locX + config.volunteerColumnWidth / 2, tableTop + config.rowHeight / 2 + 5);
+          
+          // Handle 8-bit mode - truncate/resize text if needed
+          let displayName = name;
+          if (audioMode) {
+            // Measure text width
+            const maxWidth = config.volunteerColumnWidth - 10; // Allow some padding
+            const textWidth = ctx.measureText(name).width;
+            
+            // Truncate if too long
+            if (textWidth > maxWidth) {
+              // Try to fit with ellipsis
+              let truncated = name;
+              while (ctx.measureText(truncated + '...').width > maxWidth && truncated.length > 0) {
+                truncated = truncated.slice(0, -1);
+              }
+              displayName = truncated + (truncated.length < name.length ? '...' : '');
+            }
+          }
+          
+          ctx.fillText(displayName, locX + config.volunteerColumnWidth / 2, tableTop + config.rowHeight / 2 + 5);
         });
       } else {
         // Original volunteers header
@@ -1759,10 +1930,11 @@ const ScheduleBuilder = () => {
         const y = tableTop + config.rowHeight + (index * config.rowHeight);
         
         // Time text
-        ctx.fillStyle = config.textColor;
-        ctx.font = `${audioMode ? '8' : '500 12'}px ${config.fontFamily}`;
-        ctx.textAlign = 'left';
-        ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 + 5);
+ctx.fillStyle = config.textColor;
+// Always use the smaller font size for 8-bit mode time column for consistency
+ctx.font = audioMode ? `6px ${config.fontFamily}` : `500 12px ${config.fontFamily}`;
+ctx.textAlign = 'left';
+ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 + 5);
         
         if (multipleLocations) {
           // Draw volunteer boxes for each location
@@ -1806,12 +1978,34 @@ const ScheduleBuilder = () => {
                 ctx.fill();
               }
               
-              // Volunteer text
+              // Volunteer text with truncation for 8-bit mode
               ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
-              ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+              
+              // Handle text sizing in 8-bit mode
+              if (audioMode) {
+                const maxVolWidth = volunteerWidth - 6; // Allow some padding
+                ctx.font = `8px ${config.fontFamily}`;
+                let truncated = displayName;
+                
+                // Measure and truncate if needed
+                if (ctx.measureText(displayName).width > maxVolWidth) {
+                  while (ctx.measureText(truncated + '...').width > maxVolWidth && truncated.length > 0) {
+                    truncated = truncated.slice(0, -1);
+                  }
+                  truncated = truncated + (truncated.length < displayName.length ? '...' : '');
+                }
+                
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(truncated, vx + volunteerWidth / 2, vy + vHeight / 2);
+              } else {
+                // Normal mode
+                ctx.font = `11px ${config.fontFamily}`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+              }
+              
               ctx.textBaseline = 'alphabetic';
             });
           });
@@ -1855,10 +2049,30 @@ const ScheduleBuilder = () => {
             
             // Volunteer text
             ctx.fillStyle = colors[volunteerId]?.text || config.textColor;
-            ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+            
+            // Handle text sizing in 8-bit mode
+            if (audioMode) {
+              const maxVolWidth = volunteerWidth - 6; // Allow some padding
+              ctx.font = `8px ${config.fontFamily}`;
+              let truncated = displayName;
+              
+              // Measure and truncate if needed
+              if (ctx.measureText(displayName).width > maxVolWidth) {
+                while (ctx.measureText(truncated + '...').width > maxVolWidth && truncated.length > 0) {
+                  truncated = truncated.slice(0, -1);
+                }
+                truncated = truncated + (truncated.length < displayName.length ? '...' : '');
+              }ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(truncated, vx + volunteerWidth / 2, vy + vHeight / 2);
+            } else {
+              // Normal mode
+              ctx.font = `11px ${config.fontFamily}`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(displayName, vx + volunteerWidth / 2, vy + vHeight / 2);
+            }
+            
             ctx.textBaseline = 'alphabetic';
           });
         }
@@ -1877,7 +2091,21 @@ const ScheduleBuilder = () => {
       volunteers.forEach(volunteerId => {
         const count = shiftCounts[volunteerId];
         const displayName = volunteerMap[volunteerId] || volunteerId;
-        const legendText = `${displayName}:${count}`;
+        
+        // Handle truncation for 8-bit mode
+        let legendText;
+        if (audioMode) {
+          // Keep shorter in 8-bit mode
+          const maxNameLength = 8; // arbitrary limit for legend
+          let truncName = displayName;
+          if (truncName.length > maxNameLength) {
+            truncName = truncName.substring(0, maxNameLength - 1) + '…';
+          }
+          legendText = `${truncName}:${count}`;
+        } else {
+          legendText = `${displayName}:${count}`;
+        }
+        
         const textWidth = ctx.measureText(legendText).width;
         const legendWidth = textWidth + 16;
         const legendHeight = 18;
@@ -1970,7 +2198,7 @@ const ScheduleBuilder = () => {
       // Convert to image and download
       const image = canvas.toDataURL('image/png');
       const downloadLink = document.createElement('a');
-      const dateString = timeRange.date.replace(/-/g, '');
+      const dateString = dateEnabled ? timeRange.date.replace(/-/g, '') : 'nodate';
       const locationText = locationName ? `${locationName.replace(/\s+/g, '_')}` : 'Volunteer';
       const filename = `${locationText}_Schedule_${dateString}.png`;
       
@@ -1995,7 +2223,7 @@ const ScheduleBuilder = () => {
   const ScreenshotView = () => {
     if (!schedule.length) return null;
     
-    const dateStr = formatDate(timeRange.date);
+    const dateStr = dateEnabled ? formatDate(timeRange.date) : "";
     const timeStr = `${formatTo12Hour(timeRange.startTime)}-${formatTo12Hour(timeRange.endTime)}`;
     const shiftCounts = schedule[0]?.shiftCounts || {};
     const displayTitle = locationName ? `${locationName} Schedule` : `Schedule`;
@@ -2040,7 +2268,9 @@ const ScheduleBuilder = () => {
             {/* Header */}
             <div className="text-center mb-2">
               <h1 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'} ${audioMode ? 'eight-bit-text' : ''}`}>{displayTitle}</h1>
-              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'} ${audioMode ? 'eight-bit-text' : ''}`}>{dateStr} • {timeStr}</p>
+              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'} ${audioMode ? 'eight-bit-text' : ''}`}>
+                {dateEnabled ? `${dateStr} • ${timeStr}` : timeStr}
+              </p>
             </div>
             
             {/* Compact Schedule Table - Using pure HTML table for better rendering */}
@@ -2079,7 +2309,8 @@ const ScheduleBuilder = () => {
                     color: darkMode ? '#e2e8f0' : '#1a202c',
                     ...(audioMode ? { borderWidth: '2px', fontSize: '10px' } : {})
                   }}>
-                    {name}
+                    {/* Truncate long location names in 8-bit mode */}
+                    {audioMode && name.length > 8 ? `${name.substring(0, 7)}…` : name}
                   </th>
                 ))
               ) : (
@@ -2110,8 +2341,9 @@ const ScheduleBuilder = () => {
                   whiteSpace: 'nowrap',
                   fontWeight: '500',
                   color: darkMode ? '#e2e8f0' : '#1a202c',
-                  ...(audioMode ? { borderWidth: '2px', fontSize: '10px' } : {})
+                  ...(audioMode ? { borderWidth: '2px', fontSize: audioMode ? '7px' : '10px' } : {})
                 }}>
+                  {/* Use smaller font size in 8-bit mode if needed */}
                   {slot.compactDisplay}
                 </td>
                 
@@ -2125,7 +2357,56 @@ const ScheduleBuilder = () => {
                       ...(audioMode ? { borderWidth: '2px' } : {})
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
-                        {location.volunteers.map((volunteerId, vIndex) => (
+                        {location.volunteers.map((volunteerId, vIndex) => {
+                          // Get the volunteer name
+                          const displayName = volunteerMap[volunteerId] || volunteerId;
+                          // For 8-bit mode, truncate long names
+                          const truncatedName = audioMode && displayName.length > 6 
+                            ? `${displayName.substring(0, 5)}…` 
+                            : displayName;
+                          
+                          return (
+                            <div 
+                              key={vIndex}
+                              style={{ 
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '45%',
+                                height: '22px',
+                                backgroundColor: colors[volunteerId]?.bg || 'transparent',
+                                color: colors[volunteerId]?.text || 'inherit',
+                                borderRadius: audioMode ? '0px' : '2px',
+                                fontSize: audioMode ? '8px' : '11px',
+                                margin: '0 2px',
+                                ...(audioMode ? { border: '2px solid #000' } : {})
+                              }}
+                            >
+                              {truncatedName}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  ))
+                ) : (
+                  // Single location cell
+                  <td style={{ 
+                    border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                    padding: '4px 2px',
+                    textAlign: 'center',
+                    ...(audioMode ? { borderWidth: '2px' } : {})
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
+                      {slot.volunteers.map((volunteerId, vIndex) => {
+                        // Get the volunteer name
+                        const displayName = volunteerMap[volunteerId] || volunteerId;
+                        // For 8-bit mode, truncate long names
+                        const truncatedName = audioMode && displayName.length > 6 
+                          ? `${displayName.substring(0, 5)}…` 
+                          : displayName;
+                        
+                        return (
                           <div 
                             key={vIndex}
                             style={{ 
@@ -2142,41 +2423,10 @@ const ScheduleBuilder = () => {
                               ...(audioMode ? { border: '2px solid #000' } : {})
                             }}
                           >
-                            {volunteerMap[volunteerId] || volunteerId}
+                            {truncatedName}
                           </div>
-                        ))}
-                      </div>
-                    </td>
-                  ))
-                ) : (
-                  // Single location cell
-                  <td style={{ 
-                    border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
-                    padding: '4px 2px',
-                    textAlign: 'center',
-                    ...(audioMode ? { borderWidth: '2px' } : {})
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
-                      {slot.volunteers.map((volunteerId, vIndex) => (
-                        <div 
-                          key={vIndex}
-                          style={{ 
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '45%',
-                            height: '22px',
-                            backgroundColor: colors[volunteerId]?.bg || 'transparent',
-                            color: colors[volunteerId]?.text || 'inherit',
-                            borderRadius: audioMode ? '0px' : '2px',
-                            fontSize: audioMode ? '8px' : '11px',
-                            margin: '0 2px',
-                            ...(audioMode ? { border: '2px solid #000' } : {})
-                          }}
-                        >
-                          {volunteerMap[volunteerId] || volunteerId}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </td>
                 )}
@@ -2188,26 +2438,34 @@ const ScheduleBuilder = () => {
         {/* Legend using flex for vertical alignment */}
         <div style={{ fontSize: audioMode ? '8px' : '11px', marginBottom: '4px' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-            {Object.keys(shiftCounts).map((volunteerId, index) => (
-              <div 
-                key={index}
-                style={{ 
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '18px',
-                  backgroundColor: colors[volunteerId]?.bg || 'transparent',
-                  color: colors[volunteerId]?.text || 'inherit',
-                  borderRadius: audioMode ? '0px' : '2px',
-                  fontSize: audioMode ? '8px' : '11px',
-                  padding: '0 4px',
-                  margin: '0 2px',
-                  ...(audioMode ? { border: '2px solid #000' } : {})
-                }}
-              >
-                {volunteerMap[volunteerId] || volunteerId}:{shiftCounts[volunteerId]}
-              </div>
-            ))}
+            {Object.keys(shiftCounts).map((volunteerId, index) => {
+              const displayName = volunteerMap[volunteerId] || volunteerId;
+              // For 8-bit mode, truncate long names
+              const truncatedName = audioMode && displayName.length > 6 
+                ? `${displayName.substring(0, 5)}…` 
+                : displayName;
+              
+              return (
+                <div 
+                  key={index}
+                  style={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '18px',
+                    backgroundColor: colors[volunteerId]?.bg || 'transparent',
+                    color: colors[volunteerId]?.text || 'inherit',
+                    borderRadius: audioMode ? '0px' : '2px',
+                    fontSize: audioMode ? '8px' : '11px',
+                    padding: '0 4px',
+                    margin: '0 2px',
+                    ...(audioMode ? { border: '2px solid #000' } : {})
+                  }}
+                >
+                  {truncatedName}:{shiftCounts[volunteerId]}
+                </div>
+              );
+            })}
           </div>
         </div>
         
@@ -2506,18 +2764,39 @@ return (
             </div>
           )}
           
-          {/* Date */}
+          {/* Date Toggle and Field */}
           <div>
-            <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
-              <Calendar className="inline-block mr-1 mb-0.5" size={16} />
-              Shift Date
-            </label>
-            <input
-              type="date"
-              value={timeRange.date}
-              onChange={(e) => handleTimeChange('date', e.target.value)}
-              className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} ${audioMode ? 'eight-bit-text' : ''}`}>
+                <Calendar className="inline-block mr-1 mb-0.5" size={16} />
+                Include Date
+              </label>
+              <button
+                onClick={toggleDateEnabled}
+                className={`flex items-center text-sm ${darkMode ? 'text-indigo-300' : 'text-indigo-600'} ${audioMode ? 'eight-bit-text' : ''}`}
+              >
+                {dateEnabled ? (
+                  <>
+                    <ToggleRight size={20} className="mr-1" />
+                    <span>On</span>
+                  </>
+                ) : (
+                  <>
+                    <ToggleLeft size={20} className="mr-1" />
+                    <span>Off</span>
+                  </>
+                )}
+              </button>
+            </div>
+            
+            {dateEnabled && (
+              <input
+                type="date"
+                value={timeRange.date}
+                onChange={(e) => handleTimeChange('date', e.target.value)}
+                className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+              />
+            )}
           </div>
           
           {/* Time Range - Improved for mobile */}
@@ -2528,6 +2807,9 @@ return (
             </label>
             <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
               <div className="w-full">
+                <label className={`block text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} mb-1 ${audioMode ? 'eight-bit-text' : ''}`}>
+                  Start Time
+                </label>
                 <input
                   type="time"
                   value={timeRange.startTime}
@@ -2537,6 +2819,9 @@ return (
               </div>
               <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center sm:mx-2 ${audioMode ? 'eight-bit-text' : ''}`}>to</span>
               <div className="w-full">
+                <label className={`block text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} mb-1 ${audioMode ? 'eight-bit-text' : ''}`}>
+                  End Time
+                </label>
                 <input
                   type="time"
                   value={timeRange.endTime}
@@ -2604,7 +2889,7 @@ return (
             </div>
           )}
           
-          {/* Volunteers - Improved spacing for mobile */}
+          {/* Volunteers - Improved spacing for mobile with delete buttons */}
           <div>
             <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
               <Users className="inline-block mr-1 mb-0.5" size={16} />
@@ -2614,14 +2899,27 @@ return (
             </label>
             <div className="space-y-2">
               {volunteers.map((volunteer, index) => (
-                <input
-                  key={index}
-                  type="text"
-                  value={volunteer}
-                  onChange={(e) => handleVolunteerChange(index, e.target.value)}
-                  placeholder={`Volunteer ${index + 1}`}
-                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-                />
+                <div key={index} className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={volunteer}
+                    onChange={(e) => handleVolunteerChange(index, e.target.value)}
+                    placeholder={`Volunteer ${index + 1}`}
+                    className={`flex-1 p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                  />
+                  <button
+                    onClick={() => deleteVolunteer(index)}
+                    disabled={volunteers.length <= 2} // Prevent deletion if only 2 volunteers
+                    className={`p-2 ${audioMode ? 'eight-bit-button' : 'rounded'} ${
+                      volunteers.length <= 2
+                        ? (darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400')
+                        : (darkMode ? 'bg-red-900 text-red-300 hover:bg-red-800' : 'bg-red-100 text-red-500 hover:bg-red-200')
+                    }`}
+                    aria-label="Delete volunteer"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               ))}
             </div>
             <button
@@ -2730,7 +3028,8 @@ return (
                           colSpan={2}
                           className={`px-2 sm:px-3 py-2 text-center text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider ${audioMode ? 'eight-bit-text' : ''}`}
                         >
-                          {name}
+                          {/* Truncate long location names in 8-bit mode */}
+                          {audioMode && name.length > 8 ? `${name.substring(0, 7)}…` : name}
                         </th>
                       ))}
                     </tr>
@@ -2771,7 +3070,9 @@ return (
                                     >
                                       <option value="" className={darkMode ? 'bg-gray-700' : ''}>Select volunteer</option>
                                       {Object.keys(volunteerMap).map((id) => (
-                                        <option key={id} value={id} className={darkMode ? 'bg-gray-700' : ''}>{volunteerMap[id]}</option>
+                                        <option key={id} value={id} className={darkMode ? 'bg-gray-700' : ''}>
+                                          {volunteerMap[id]}
+                                        </option>
                                       ))}
                                     </select>
                                   </div>
@@ -2843,7 +3144,9 @@ return (
                                 >
                                   <option value="" className={darkMode ? 'bg-gray-700' : ''}>Select volunteer</option>
                                   {Object.keys(volunteerMap).map((id) => (
-                                    <option key={id} value={id} className={darkMode ? 'bg-gray-700' : ''}>{volunteerMap[id]}</option>
+                                    <option key={id} value={id} className={darkMode ? 'bg-gray-700' : ''}>
+                                      {volunteerMap[id]}
+                                    </option>
                                   ))}
                                 </select>
                               </div>
@@ -2893,7 +3196,7 @@ return (
   
   <footer className={`mt-6 py-4 border-t ${darkMode ? 'border-gray-800 text-gray-400' : 'border-gray-200 text-gray-500'} ${audioMode ? 'eight-bit-footer' : ''}`}>
     <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center text-center text-xs">
-      <div className={audioMode ? 'eight-bit-text' : ''}>v 1.4.1 {audioMode && "8-BIT MODE"}</div>
+      <div className={audioMode ? 'eight-bit-text' : ''}>v 1.5.0 {audioMode && "8-BIT MODE"}</div>
       <div className={`mt-1 sm:mt-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'} ${audioMode ? 'eight-bit-text' : ''}`}>
         {schedulesGenerated.toLocaleString()} schedules made with this tool
       </div>
