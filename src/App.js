@@ -32,34 +32,67 @@ const ScheduleBuilder = () => {
   const [showCopyFallback, setShowCopyFallback] = useState(false);
   const [schedulesGenerated, setSchedulesGenerated] = useState(0);
   //Gif click states
-  const [footerPokeCount, setFooterPokeCount] = useState(0);
-const [showFooterPoke, setShowFooterPoke] = useState(false);
-
-// This function handles the click on the wave image and checks if it's on the left half
-const handleWaveClick = (event) => {
-  // Get the click position and image dimensions
-  const rect = event.currentTarget.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const width = rect.width;
+  const [clickCount, setClickCount] = useState(0);
+  const [pokeSequenceCount, setPokeSequenceCount] = useState(0);
+  const [showPokeAnimation, setShowPokeAnimation] = useState(false);
+  const [showLowHpAnimation, setShowLowHpAnimation] = useState(false);
+  const [showFellAnimation, setShowFellAnimation] = useState(false);
   
-  // Only count if clicked on the LEFT half of the image
-  if (x < width / 2) {
-    // Increment the click counter
-    const newCount = footerPokeCount + 1;
-    setFooterPokeCount(newCount);
+  // Updated function with corrected logic
+  const handleWaveClick = (event) => {
+    // If already showing the final "fell" animation, do nothing
+    if (showFellAnimation) return;
     
-    // If we've reached 5 clicks, show the poking animation
-    if (newCount >= 5) {
-      setShowFooterPoke(true);
-      setFooterPokeCount(0); // Reset counter
+    // Get the click position and image dimensions
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const width = rect.width;
+    
+    // Only count if clicked on the LEFT half of the image
+    if (x < width / 2) {
+      // Increment the click counter
+      const newClickCount = clickCount + 1;
+      setClickCount(newClickCount);
       
-      // Reset after 5 seconds
-      setTimeout(() => {
-        setShowFooterPoke(false);
-      }, 5000);
+      // If we've reached 3 clicks
+      if (newClickCount >= 3) {
+        // Reset click counter
+        setClickCount(0);
+        
+        // Determine which animation to show based on sequence count
+        if (showLowHpAnimation) {
+          // If we're at low HP and get triggered again, switch to fell animation permanently
+          setShowLowHpAnimation(false);
+          setShowFellAnimation(true);
+          // No timeout - fell.gif remains until page reload
+        } 
+        else if (pokeSequenceCount >= 2) {
+          // After 2 poking sequences, trigger the low HP animation on the 3rd
+          setShowLowHpAnimation(true);
+          
+          // Increment sequence count (this will be 3 now)
+          setPokeSequenceCount(pokeSequenceCount + 1);
+          
+          // Reset to normal after 5 seconds
+          setTimeout(() => {
+            setShowLowHpAnimation(false);
+          }, 2000);
+        } 
+        else {
+          // Regular poke animation for the first 2 sequences
+          setShowPokeAnimation(true);
+          
+          // Increment the sequence counter
+          setPokeSequenceCount(pokeSequenceCount + 1);
+          
+          // Reset after 5 seconds
+          setTimeout(() => {
+            setShowPokeAnimation(false);
+          }, 2000);
+        }
+      }
     }
-  }
-};
+  };
   // New states for multiple locations
   const [multipleLocations, setMultipleLocations] = useState(false);
   const [locationNames, setLocationNames] = useState(['Location 1', 'Location 2']);
@@ -3226,7 +3259,12 @@ return (
     {audioMode && (
       <div className="mb-8 mt-4">
         <img 
-          src={`${process.env.PUBLIC_URL}/${showFooterPoke ? 'poking_brandon.gif' : 'wave.gif'}`} 
+          src={`${process.env.PUBLIC_URL}/${
+            showFellAnimation ? 'fell.gif' : 
+            showLowHpAnimation ? 'lowhp.gif' : 
+            showPokeAnimation ? 'poking_brandon.gif' : 
+            'wave.gif'
+          }`} 
           alt="8-bit animation" 
           className="h-64 sm:h-96 md:h-160 lg:h-200 w-auto max-w-full cursor-pointer"
           style={{ imageRendering: 'pixelated' }}
@@ -3242,6 +3280,7 @@ return (
     </div>
   </div>
 </footer>
+
 </div>
 );
 };
