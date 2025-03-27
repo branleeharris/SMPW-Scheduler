@@ -31,7 +31,35 @@ const ScheduleBuilder = () => {
   const [copyStatus, setCopyStatus] = useState(null); // 'copying', 'success', 'error'
   const [showCopyFallback, setShowCopyFallback] = useState(false);
   const [schedulesGenerated, setSchedulesGenerated] = useState(0);
+  //Gif click states
+  const [footerPokeCount, setFooterPokeCount] = useState(0);
+const [showFooterPoke, setShowFooterPoke] = useState(false);
+
+// This function handles the click on the wave image and checks if it's on the left half
+const handleWaveClick = (event) => {
+  // Get the click position and image dimensions
+  const rect = event.currentTarget.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const width = rect.width;
   
+  // Only count if clicked on the LEFT half of the image
+  if (x < width / 2) {
+    // Increment the click counter
+    const newCount = footerPokeCount + 1;
+    setFooterPokeCount(newCount);
+    
+    // If we've reached 5 clicks, show the poking animation
+    if (newCount >= 5) {
+      setShowFooterPoke(true);
+      setFooterPokeCount(0); // Reset counter
+      
+      // Reset after 5 seconds
+      setTimeout(() => {
+        setShowFooterPoke(false);
+      }, 5000);
+    }
+  }
+};
   // New states for multiple locations
   const [multipleLocations, setMultipleLocations] = useState(false);
   const [locationNames, setLocationNames] = useState(['Location 1', 'Location 2']);
@@ -3198,15 +3226,16 @@ return (
     {audioMode && (
       <div className="mb-8 mt-4">
         <img 
-          src={`${process.env.PUBLIC_URL}/wave.gif`} 
-          alt="8-bit wave animation" 
-          className="h-64 sm:h-96 md:h-160 lg:h-200 w-auto max-w-full"
+          src={`${process.env.PUBLIC_URL}/${showFooterPoke ? 'poking_brandon.gif' : 'wave.gif'}`} 
+          alt="8-bit animation" 
+          className="h-64 sm:h-96 md:h-160 lg:h-200 w-auto max-w-full cursor-pointer"
           style={{ imageRendering: 'pixelated' }}
+          onClick={handleWaveClick}
         />
       </div>
     )}
     <div className="flex flex-col sm:flex-row justify-between items-center text-center text-xs w-full mt-6">
-      <div className={audioMode ? 'eight-bit-text' : ''}>v 1.5.1 {audioMode && "8-BIT MODE"}</div>
+      <div className={audioMode ? 'eight-bit-text' : ''}>v 1.5.0 {audioMode && "8-BIT MODE"}</div>
       <div className={`mt-1 sm:mt-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'} ${audioMode ? 'eight-bit-text' : ''}`}>
         {schedulesGenerated.toLocaleString()} schedules made with this tool
       </div>
