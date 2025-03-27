@@ -2657,29 +2657,29 @@ return (
   
   {/* Header with mobile improvements */}
   <header className={`bg-gradient-to-r ${darkMode ? 'from-indigo-900 to-purple-900' : 'from-indigo-600 to-purple-600'} py-4 px-4 text-white ${audioMode ? 'eight-bit-header' : ''}`}>
-    <div className="max-w-6xl mx-auto">
-      <div className="flex flex-col sm:flex-row items-center justify-between">
-        <h1 
-          className={`text-xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-0 flex items-center cursor-pointer ${audioMode ? 'eight-bit-text' : ''}`}
-          onClick={handleTitleClick}
+  <div className="max-w-6xl mx-auto">
+    <div className="flex flex-col sm:flex-row items-center justify-between">
+      <h1 
+        className={`text-xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-0 flex items-center cursor-pointer ${audioMode ? 'eight-bit-text' : ''}`}
+        onClick={handleTitleClick}
+      >
+        <Calendar className="mr-2 hidden sm:inline" />
+        <span>{smpwMode ? (audioMode ? "8-BIT SMPW" : "SMPW Scheduler") : (audioMode ? "8-BIT SCHEDULER" : "Volunteer Schedule Builder")}</span>
+      </h1>
+      
+      <div className="flex items-center space-x-2">
+        <button 
+          onClick={toggleDarkMode}
+          className={`p-2 ${audioMode ? 'eight-bit-button' : 'rounded-full'} bg-white bg-opacity-10 hover:bg-opacity-20 text-white flex items-center`}
+          aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
         >
-          <Calendar className="mr-2 hidden sm:inline" />
-          <span>{smpwMode ? (audioMode ? "8-BIT SMPW" : "SMPW Scheduler") : (audioMode ? "8-BIT SCHEDULER" : "Volunteer Schedule Builder")}</span>
-        </h1>
-        
-        <div className="flex items-center space-x-2">
-          <button 
-            onClick={toggleDarkMode}
-            className={`p-2 ${audioMode ? 'eight-bit-button' : 'rounded-full'} bg-white bg-opacity-10 hover:bg-opacity-20 text-white flex items-center`}
-            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-            <span className="ml-1 text-sm hidden sm:inline">{darkMode ? "Light" : "Dark"}</span>
-          </button>
-        </div>
+          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+          <span className="ml-1 text-sm hidden sm:inline">{darkMode ? "Light" : "Dark"}</span>
+        </button>
       </div>
     </div>
-  </header>
+  </div>
+</header>
   
   {screenshotMode && <ScreenshotView />}
   
@@ -3171,7 +3171,6 @@ return (
                 </table>
               </div>
             )}
-            
             {/* Finished Button - Larger for better mobile touch target */}
             <div className="mt-4 flex justify-center">
               <button
@@ -3194,14 +3193,26 @@ return (
     </div>
   </main>
   
-  <footer className={`mt-6 py-4 border-t ${darkMode ? 'border-gray-800 text-gray-400' : 'border-gray-200 text-gray-500'} ${audioMode ? 'eight-bit-footer' : ''}`}>
-    <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center text-center text-xs">
-      <div className={audioMode ? 'eight-bit-text' : ''}>v 1.5.0 {audioMode && "8-BIT MODE"}</div>
+  <footer className={`mt-8 pt-8 pb-12 border-t ${darkMode ? 'border-gray-800 text-gray-400' : 'border-gray-200 text-gray-500'} ${audioMode ? 'eight-bit-footer' : ''}`}>
+  <div className="max-w-6xl mx-auto px-4 flex flex-col items-center">
+    {audioMode && (
+      <div className="mb-8 mt-4">
+        <img 
+          src={`${process.env.PUBLIC_URL}/wave.gif`} 
+          alt="8-bit wave animation" 
+          className="h-64 sm:h-96 md:h-160 lg:h-200 w-auto max-w-full"
+          style={{ imageRendering: 'pixelated' }}
+        />
+      </div>
+    )}
+    <div className="flex flex-col sm:flex-row justify-between items-center text-center text-xs w-full mt-6">
+      <div className={audioMode ? 'eight-bit-text' : ''}>v 1.5.1 {audioMode && "8-BIT MODE"}</div>
       <div className={`mt-1 sm:mt-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'} ${audioMode ? 'eight-bit-text' : ''}`}>
         {schedulesGenerated.toLocaleString()} schedules made with this tool
       </div>
     </div>
-  </footer>
+  </div>
+</footer>
 </div>
 );
 };
