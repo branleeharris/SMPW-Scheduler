@@ -7,7 +7,7 @@ import { incrementScheduleCounter, getScheduleCount } from './firebase';
 import './8bit.css';
 
 const ScheduleBuilder = () => {
-  const [volunteers, setVolunteers] = useState(['', '', '', '', '']);
+  const [volunteers, setVolunteers] = useState(['', '', '', '', '', '']);
   const [volunteerMap, setVolunteerMap] = useState({});  // Added volunteerMap
   const [locationName, setLocationName] = useState('');
   const [timeRange, setTimeRange] = useState({ 
