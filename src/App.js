@@ -115,9 +115,7 @@ const ScheduleBuilder = () => {
     "Eastern Market",
     "Rosa Parks",
     "Campus Martius",
-    "Greektown",
     "Grand Circus Park",
-    "Hart Plaza",
     "Avalon Bakery",
     "Corktown",
     "Wayne State",
@@ -3273,7 +3271,7 @@ return (
       </div>
     )}
     <div className="flex flex-col sm:flex-row justify-between items-center text-center text-xs w-full mt-6">
-      <div className={audioMode ? 'eight-bit-text' : ''}>v 1.5.0 {audioMode && "8-BIT MODE"}</div>
+      <div className={audioMode ? 'eight-bit-text' : ''}>v 1.5.5 {audioMode && "8-BIT MODE"}</div>
       <div className={`mt-1 sm:mt-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'} ${audioMode ? 'eight-bit-text' : ''}`}>
         {schedulesGenerated.toLocaleString()} schedules made with this tool
       </div>

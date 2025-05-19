@@ -1,7 +1,18 @@
+/* 8bit.css */
+
 /* 8-bit mode styles */
 .eight-bit-mode {
-  font-family: 'Press Start 2P', cursive;
+  font-family: 'Press Start 2P', cursive !important; /* Use !important sparingly, but helps override base */
   image-rendering: pixelated;
+  /* Base colors */
+  background-color: #FAF0E6 !important; /* Example light 8-bit background */
+  color: #000000 !important;
+}
+
+/* Ensure dark mode doesn't conflict with 8-bit base */
+.dark .eight-bit-mode {
+  background-color: #000000 !important; /* Example dark 8-bit background */
+  color: #FFFFFF !important;
 }
 
 .eight-bit-container {
@@ -9,132 +20,257 @@
 }
 
 .eight-bit-text {
-  font-family: 'Press Start 2P', cursive;
-  /* Smaller font size to prevent overflow */
-  font-size: 0.85em;
+  font-family: 'Press Start 2P', cursive !important; /* Apply font */
+  font-size: 0.8em; /* Adjusted base size */
   line-height: 1.5;
+  text-transform: none; /* Reset potential global transforms */
 }
 
 .eight-bit-heading {
-  font-family: 'Press Start 2P', cursive;
+  font-family: 'Press Start 2P', cursive !important;
   text-transform: uppercase;
+  font-size: 1em; /* Adjust heading size */
 }
 
 .eight-bit-button {
-  font-family: 'Press Start 2P', cursive;
-  border: 2px solid #000;
-  padding: 8px;
+  font-family: 'Press Start 2P', cursive !important;
+  border: 3px solid #000 !important; /* Thicker border */
+  padding: 8px 12px !important;
   text-transform: uppercase;
-  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.8);
-  transition: all 0.05s linear;
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.8) !important;
+  transition: all 0.05s linear !important;
   transform: translateY(0);
+  background-color: #E0E0E0 !important; /* Default button bg */
+  color: #000000 !important;
+  border-radius: 0 !important; /* No rounded corners */
+  cursor: pointer;
+}
+
+.eight-bit-button:hover {
+   background-color: #D0D0D0 !important; /* Slight hover */
 }
 
 .eight-bit-button:active {
-  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.8);
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.8) !important;
   transform: translateY(2px) translateX(2px);
 }
 
 .eight-bit-button:disabled {
-  opacity: 0.5;
-  box-shadow: none;
-  transform: none;
+  opacity: 0.6 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  background-color: #A0A0A0 !important;
+  cursor: not-allowed;
 }
 
 .eight-bit-checkbox {
   transform: scale(1.5);
   margin: 0 0.5rem;
+  appearance: none; /* Custom checkbox */
+  width: 16px;
+  height: 16px;
+  border: 2px solid black;
+  position: relative;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.eight-bit-checkbox:checked::before {
+ content: "X";
+ position: absolute;
+ top: -4px; /* Adjust positioning */
+ left: 1px;
+ font-size: 14px;
+ font-family: 'Press Start 2P', cursive;
 }
 
+
 .eight-bit-panel {
-  border: 4px solid #000;
-  box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.5);
+  border: 4px solid #000 !important;
+  box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.5) !important;
+  background-color: #F0F0F0 !important; /* Panel background */
+  border-radius: 0 !important;
+  padding: 15px !important;
 }
 
 .eight-bit-box {
-  border: 2px solid #000;
-  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.5);
+  border: 3px solid #000 !important;
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.5) !important;
+  background-color: #F5F5F5 !important; /* Box background */
+  border-radius: 0 !important;
+  padding: 10px !important;
 }
 
 .eight-bit-header {
-  border-bottom: 4px solid #000;
+  border-bottom: 4px solid #000 !important;
+  background: linear-gradient(to right, #4040FF, #800080) !important; /* Example gradient */
+  color: white !important;
+  border-radius: 0 !important;
 }
 
 .eight-bit-footer {
-  border-top: 4px solid #000;
+  border-top: 4px solid #000 !important;
+  background-color: #D0D0D0 !important;
+  color: #000000 !important;
+  border-radius: 0 !important;
 }
 
-/* Form element styling - FIXED to respect dark mode */
-.eight-bit-mode input,
+/* Form element styling */
+.eight-bit-mode input:not([type="checkbox"]),
 .eight-bit-mode select,
 .eight-bit-mode textarea {
-  font-family: 'Press Start 2P', cursive;
-  font-size: 0.7rem;
-  border: 2px solid #000;
-  padding: 8px;
-  /* Removed explicit background color to respect dark mode */
+  font-family: 'Press Start 2P', cursive !important;
+  font-size: 0.75em !important;
+  border: 3px solid #000 !important;
+  padding: 8px !important;
+  background-color: #FFFFFF !important;
+  color: #000000 !important;
+  border-radius: 0 !important;
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.6) !important;
+  appearance: none; /* Needed for custom select arrow */
+  -webkit-appearance: none;
+  -moz-appearance: none;
 }
 
-/* Dark mode specific overrides */
-.dark .eight-bit-mode input,
-.dark .eight-bit-mode select,
-.dark .eight-bit-mode textarea {
-  border-color: #4a5568;
-  background-color: #2d3748; /* Dark background for form elements */
-  color: white;
+/* Style select dropdown arrow */
+.eight-bit-mode select {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="black"><polygon points="0,0 16,0 8,8"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 8px 8px;
+  padding-right: 28px !important; /* Make space for arrow */
 }
 
-.dark .eight-bit-mode select option {
-  background-color: #2d3748; /* Dark background for dropdown options */
-  color: white;
+/* Need to style option elements too */
+.eight-bit-mode select option {
+  font-family: 'Press Start 2P', cursive !important;
+  font-size: 0.75em !important;
+  background-color: #FFFFFF !important;
+  color: #000000 !important;
+}
+
+/* Dark mode specific overrides for 8-bit - Use dark colors */
+.dark .eight-bit-mode {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
 }
 
 .dark .eight-bit-button {
-  border-color: #4a5568;
+  border-color: #CCCCCC !important;
+  background-color: #333333 !important;
+  color: #FFFFFF !important;
+  box-shadow: 4px 4px 0px rgba(204, 204, 204, 0.6) !important;
 }
+.dark .eight-bit-button:active {
+  box-shadow: 2px 2px 0px rgba(204, 204, 204, 0.6) !important;
+}
+.dark .eight-bit-button:disabled {
+  background-color: #555555 !important;
+  border-color: #888888 !important;
+  color: #AAAAAA !important;
+  box-shadow: none !important;
+}
+
+.dark .eight-bit-panel {
+  border-color: #CCCCCC !important;
+  background-color: #1A1A1A !important;
+  box-shadow: 6px 6px 0px rgba(204, 204, 204, 0.4) !important;
+}
+.dark .eight-bit-box {
+  border-color: #CCCCCC !important;
+  background-color: #2C2C2C !important;
+  box-shadow: 4px 4px 0px rgba(204, 204, 204, 0.4) !important;
+}
+
+.dark .eight-bit-header {
+  border-color: #CCCCCC !important;
+  background: linear-gradient(to right, #101080, #400040) !important; /* Darker gradient */
+}
+.dark .eight-bit-footer {
+  border-color: #CCCCCC !important;
+  background-color: #333333 !important;
+  color: #FFFFFF !important;
+}
+
+.dark .eight-bit-mode input:not([type="checkbox"]),
+.dark .eight-bit-mode select,
+.dark .eight-bit-mode textarea {
+  border-color: #CCCCCC !important;
+  background-color: #111111 !important;
+  color: #FFFFFF !important;
+  box-shadow: 2px 2px 0px rgba(204, 204, 204, 0.5) !important;
+}
+.dark .eight-bit-mode select {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="white"><polygon points="0,0 16,0 8,8"/></svg>');
+}
+.dark .eight-bit-mode select option {
+  background-color: #111111 !important;
+  color: #FFFFFF !important;
+}
+.dark .eight-bit-checkbox {
+ border-color: #CCCCCC !important;
+}
+.dark .eight-bit-checkbox:checked::before {
+ color: #FFFFFF !important;
+}
+
 
 .eight-bit-mode input:focus,
 .eight-bit-mode select:focus,
 .eight-bit-mode textarea:focus {
-  outline: none;
-  border-color: #4299e1;
-  box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.3);
+  outline: 2px dashed #FF00FF !important; /* Magenta dashed outline on focus */
+  outline-offset: 2px;
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.6) !important; /* Keep shadow */
+}
+.dark .eight-bit-mode input:focus,
+.dark .eight-bit-mode select:focus,
+.dark .eight-bit-mode textarea:focus {
+  outline: 2px dashed #FFFF00 !important; /* Yellow dashed outline */
+  box-shadow: 2px 2px 0px rgba(204, 204, 204, 0.5) !important;
 }
 
 /* Table styling */
 .eight-bit-mode table {
-  border-collapse: separate;
-  border-spacing: 0;
-  border: 2px solid #000;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  border: 3px solid #000 !important;
+  width: 100%; /* Ensure table takes width */
 }
 
 .dark .eight-bit-mode table {
-  border-color: #4a5568;
+  border-color: #CCCCCC !important;
 }
 
 .eight-bit-mode th,
 .eight-bit-mode td {
-  border: 2px solid #000;
-  padding: 8px;
+  border: 2px solid #000 !important;
+  padding: 6px 8px !important; /* Adjust padding */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100px; /* Set a maximum width */
+  max-width: 120px; /* Adjust max width */
+  font-size: 0.7em !important; /* Smaller table font */
+  vertical-align: middle; /* Align content vertically */
 }
 
 .dark .eight-bit-mode th,
 .dark .eight-bit-mode td {
-  border-color: #4a5568;
+  border-color: #CCCCCC !important;
+}
+
+.eight-bit-mode th {
+  background-color: #C0C0C0 !important; /* Header background */
+  text-transform: uppercase;
+  font-weight: normal !important; /* Font doesn't support bold well */
+}
+.dark .eight-bit-mode th {
+  background-color: #444444 !important;
 }
 
 /* Make time column use CONSISTENT font size in 8-bit mode */
-.eight-bit-mode td:first-child {
-  font-size: 7px !important; /* Force consistent small font for all time entries */
-}
-
-/* Also apply to the ScreenshotView component */
-.eight-bit-mode [ref="scheduleRef"] table td:first-child {
-  font-size: 7px !important;
+.eight-bit-mode td:first-child,
+.eight-bit-mode [ref="scheduleRef"] table td:first-child { /* Keep ref selector if ScreenshotView uses it */
+  font-size: 0.65em !important; /* Even smaller for time */
+  max-width: 90px; /* Adjust time width */
 }
 
 /* Scanline effect */
@@ -148,10 +284,10 @@
   z-index: 9999;
   background: repeating-linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.05),
-    rgba(0, 0, 0, 0.05) 1px,
+    rgba(0, 0, 0, 0.08), /* Slightly darker */
+    rgba(0, 0, 0, 0.08) 1px,
     transparent 1px,
-    transparent 2px
+    transparent 3px /* Wider lines */
   );
 }
 
@@ -159,46 +295,63 @@
 .dark .scanline-effect {
   background: repeating-linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0.03),
-    rgba(255, 255, 255, 0.03) 1px,
+    rgba(255, 255, 255, 0.05), /* Slightly more visible */
+    rgba(255, 255, 255, 0.05) 1px,
     transparent 1px,
-    transparent 2px
+    transparent 3px
   );
 }
 
-/* Fix for text overflow in 8-bit mode tables */
-.eight-bit-mode select,
-.eight-bit-mode option {
-  font-family: 'Press Start 2P', cursive;
-  font-size: 0.7rem;
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
+/* Fix for text overflow in 8-bit mode tables - already handled by td style */
 
 /* Animation effects */
 @keyframes pixel-blink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  50% { opacity: 0.3; } /* Less intense blink */
 }
 
 .eight-bit-blink {
-  animation: pixel-blink 1s steps(2) infinite;
+  animation: pixel-blink 0.8s steps(2) infinite;
 }
 
-/* Mobile responsive tweaks */
+/* Mobile responsive tweaks - Use Tailwind primarily, but keep if needed */
 @media (max-width: 640px) {
   .eight-bit-text {
-    font-size: 0.7em;
+    font-size: 0.75em; /* Slightly larger base for mobile */
   }
-  
+
   .eight-bit-button {
-    padding: 6px;
+    padding: 6px 10px !important;
     font-size: 0.7em;
   }
-  
+
   .eight-bit-mode td,
   .eight-bit-mode th {
-    padding: 4px;
-    max-width: 80px;
+    padding: 4px 6px !important;
+    max-width: 90px; /* Adjust mobile max width */
+    font-size: 0.65em !important;
   }
+   .eight-bit-mode td:first-child {
+     font-size: 0.6em !important;
+     max-width: 75px;
+   }
+}
+
+/* Specific style for volunteer tags inside tables in 8-bit mode */
+.eight-bit-mode .volunteer-tag-8bit {
+    display: inline-block;
+    border: 2px solid #000;
+    padding: 2px 4px;
+    margin: 1px;
+    font-size: 0.8em !important; /* Tiny text inside tags */
+    line-height: 1.2;
+    text-align: center;
+    min-width: 50px; /* Ensure minimum width */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dark .eight-bit-mode .volunteer-tag-8bit {
+    border-color: #CCCCCC;
 }
