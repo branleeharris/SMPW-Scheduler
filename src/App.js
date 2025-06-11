@@ -339,8 +339,8 @@ const ScheduleBuilder = () => {
       setLocationNames(["Fisher / Russell", "Market/Winder"]);
       
       // Add more volunteer slots
-      if (volunteers.length < 9) {
-        const additionalSlots = 9 - volunteers.length;
+      if (volunteers.length < 11) {
+        const additionalSlots = 11 - volunteers.length;
         const newVolunteers = [...volunteers];
         for (let i = 0; i < additionalSlots; i++) {
           newVolunteers.push('');
