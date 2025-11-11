@@ -682,7 +682,7 @@ const ScheduleBuilder = () => {
           lastChanceVolunteers.sort((a, b) => shiftCounts[a] - shiftCounts[b]);
           
           // Fill first position if needed
-          if (assignedVolunteers[slotIndex][locationIndex].length === 0 && lastChanceVolunteers.length > 0) {
+          if (assignedVolunteers[slotIndex][locationIndex].length === 0) {
             const firstVolunteer = lastChanceVolunteers.find(v => !isVolunteerInSlot(v, assignedVolunteers[slotIndex])) || lastChanceVolunteers[0];
             assignedVolunteers[slotIndex][locationIndex].push(firstVolunteer);
             shiftCounts[firstVolunteer]++;
@@ -835,7 +835,7 @@ const ScheduleBuilder = () => {
             assignedVolunteers[slotIndex].push(secondVolunteer);
             shiftCounts[secondVolunteer]++;
           } else {
-            // Last resort - try to find anyone not in the back-to-back slot
+            // Last resort - try to find someone not in the back-to-back slot
             const lastResortOptions = filteredVolunteers.filter(v => 
               v !== firstVolunteer && isVolunteerAvailable(v, slotIndex, assignedVolunteers)
             );
@@ -1233,9 +1233,9 @@ const ScheduleBuilder = () => {
       const width = config.timeColumnWidth + totalVolunteerWidth + config.padding * 2;
       let height = config.headerHeight + ((schedule.length + 1) * config.rowHeight) + config.legendHeight + config.padding * 2;
       
-      // Add space for scriptural point if in SMPW mode
+      // Add space for discussion point
       let scripturalPointHeight = 0;
-      if (smpwMode && scripturalPoint) {
+      if (scripturalPoint) {
         // Estimate height based on text length (rough estimate)
         const textLength = scripturalPoint.length;
         const charsPerLine = audioMode ? 30 : 50; // Fewer chars per line in 8-bit mode
@@ -1292,9 +1292,82 @@ const ScheduleBuilder = () => {
       }
       
       ctx.fillText(headerText, width / 2, config.padding + 40);
-      
-      // Table dimensions and position
-      const tableTop = config.padding + config.headerHeight;
+
+      // Draw Discussion Point if present - positioned between header and table
+      let discussionPointHeight = 0;
+      if (scripturalPoint) {
+        const discussionLabel = smpwMode ? 'Scriptural Discussion' : 'Discussion Point';
+        const discussionY = config.padding + config.headerHeight;
+
+        // Draw Discussion Point background box
+        const boxPadding = 12;
+        const boxWidth = width - config.padding * 2;
+
+        // Calculate text wrapping
+        ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
+        const maxTextWidth = boxWidth - boxPadding * 2;
+
+        // Word wrap function
+        const wrapText = (text, maxWidth) => {
+          const words = text.split(' ');
+          const lines = [];
+          let currentLine = '';
+
+          words.forEach(word => {
+            const testLine = currentLine ? currentLine + ' ' + word : word;
+            const metrics = ctx.measureText(testLine);
+
+            if (metrics.width > maxWidth && currentLine) {
+              lines.push(currentLine);
+              currentLine = word;
+            } else {
+              currentLine = testLine;
+            }
+          });
+
+          if (currentLine) {
+            lines.push(currentLine);
+          }
+
+          return lines;
+        };
+
+        const wrappedLines = wrapText(scripturalPoint, maxTextWidth);
+        const lineHeight = audioMode ? 12 : 16;
+        const labelHeight = audioMode ? 12 : 16;
+        discussionPointHeight = labelHeight + (wrappedLines.length * lineHeight) + boxPadding * 2 + 10; // Extra spacing
+
+        // Draw box background
+        ctx.fillStyle = darkMode ? '#2d3748' : '#f7fafc';
+        ctx.fillRect(config.padding, discussionY, boxWidth, discussionPointHeight - 10);
+
+        // Draw box border
+        ctx.strokeStyle = darkMode ? '#4a5568' : '#e2e8f0';
+        ctx.lineWidth = audioMode ? 2 : 1;
+        ctx.strokeRect(config.padding, discussionY, boxWidth, discussionPointHeight - 10);
+
+        // Draw label - centered and larger
+        ctx.fillStyle = darkMode ? '#a78bfa' : '#6366f1';
+        ctx.font = `${audioMode ? '' : 'bold '}${audioMode ? '10' : '14'}px ${config.fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.fillText(discussionLabel, width / 2, discussionY + boxPadding + 12);
+
+        // Draw wrapped text - reset to left alignment
+        ctx.fillStyle = darkMode ? '#e2e8f0' : '#1a202c';
+        ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
+        ctx.textAlign = 'left'; // Reset to left alignment for content text
+
+        wrappedLines.forEach((line, index) => {
+          ctx.fillText(
+            line,
+            config.padding + boxPadding,
+            discussionY + boxPadding + labelHeight + 16 + (index * lineHeight)
+          );
+        });
+      }
+
+      // Table dimensions and position - adjusted for Discussion Point
+      const tableTop = config.padding + config.headerHeight + discussionPointHeight;
       const tableWidth = width - config.padding * 2;
       const tableHeight = (schedule.length + 1) * config.rowHeight; // +1 for header
       
@@ -1562,13 +1635,11 @@ ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 
       let legendX = config.padding;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
       
       volunteers.forEach(volunteerId => {
         const count = shiftCounts[volunteerId];
         const displayName = volunteerMap[volunteerId] || volunteerId;
-        
-        // Adjust for 8-bit mode
-        ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
         
         // Handle truncation for 8-bit mode
         let legendText;
@@ -1621,60 +1692,7 @@ ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 
         
         legendX += legendWidth + 6;
       });
-      
-      // Draw scriptural point if in SMPW mode
-      if (smpwMode && scripturalPoint) {
-        const scriptureY = legendY + 30;
-        const scriptureWidth = width - config.padding * 2;
-        
-        // Draw scripture box background
-        ctx.fillStyle = darkMode ? '#2d3748' : '#f7fafc';
-        ctx.strokeStyle = config.borderColor;
-        ctx.lineWidth = audioMode ? 2 : 1;
-        
-        // Draw box
-        if (audioMode) {
-          // Square box for 8-bit mode
-          ctx.fillRect(config.padding, scriptureY, scriptureWidth, scripturalPointHeight);
-          ctx.strokeRect(config.padding, scriptureY, scriptureWidth, scripturalPointHeight);
-        } else {
-          ctx.fillRect(config.padding, scriptureY, scriptureWidth, scripturalPointHeight);
-          ctx.strokeRect(config.padding, scriptureY, scriptureWidth, scripturalPointHeight);
-        }
-        
-        // Measure and wrap text
-        ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
-        const maxWidth = scriptureWidth - 20;
-        const words = scripturalPoint.split(' ');
-        const lines = [];
-        let currentLine = '';
-        
-        // Break text into lines
-        words.forEach(word => {
-          const testLine = currentLine ? `${currentLine} ${word}` : word;
-          if (ctx.measureText(testLine).width > maxWidth && currentLine) {
-            lines.push(currentLine);
-            currentLine = word;
-          } else {
-            currentLine = testLine;
-          }
-        });
-        if (currentLine) lines.push(currentLine);
-        
-        // Draw heading
-        ctx.fillStyle = config.textColor;
-        ctx.font = `${audioMode ? 'bold 8' : 'bold 13'}px ${config.fontFamily}`;
-        ctx.textAlign = 'left';
-        ctx.fillText('Scriptural Discussion', config.padding + 10, scriptureY + 18);
-        
-        // Draw text content
-        ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
-        const lineHeight = audioMode ? 12 : 16;
-        lines.forEach((line, i) => {
-          ctx.fillText(line, config.padding + 10, scriptureY + 36 + (i * lineHeight));
-        });
-      }
-      
+
       // Convert canvas to blob for sharing
       const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
       const imageUrl = canvas.toDataURL('image/png');
@@ -1818,9 +1836,9 @@ ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 
       const width = config.timeColumnWidth + totalVolunteerWidth + config.padding * 2;
       let height = config.headerHeight + ((schedule.length + 1) * config.rowHeight) + config.legendHeight + config.padding * 2;
       
-      // Add space for scriptural point if in SMPW mode
+      // Add space for discussion point
       let scripturalPointHeight = 0;
-      if (smpwMode && scripturalPoint) {
+      if (scripturalPoint) {
         // Estimate height based on text length (rough estimate)
         const textLength = scripturalPoint.length;
         const charsPerLine = audioMode ? 30 : 50; // Fewer chars per line in 8-bit mode
@@ -1833,6 +1851,8 @@ ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 
       canvas.width = width * config.pixelRatio;
       canvas.height = height * config.pixelRatio;
       canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      
       canvas.style.height = `${height}px`;
       
       const ctx = canvas.getContext('2d');
@@ -1877,9 +1897,82 @@ ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 
       }
       
       ctx.fillText(headerText, width / 2, config.padding + 40);
-      
-      // Table dimensions and position
-      const tableTop = config.padding + config.headerHeight;
+
+      // Draw Discussion Point if present - positioned between header and table
+      let discussionPointHeight = 0;
+      if (scripturalPoint) {
+        const discussionLabel = smpwMode ? 'Scriptural Discussion' : 'Discussion Point';
+        const discussionY = config.padding + config.headerHeight;
+
+        // Draw Discussion Point background box
+        const boxPadding = 12;
+        const boxWidth = width - config.padding * 2;
+
+        // Calculate text wrapping
+        ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
+        const maxTextWidth = boxWidth - boxPadding * 2;
+
+        // Word wrap function
+        const wrapText = (text, maxWidth) => {
+          const words = text.split(' ');
+          const lines = [];
+          let currentLine = '';
+
+          words.forEach(word => {
+            const testLine = currentLine ? currentLine + ' ' + word : word;
+            const metrics = ctx.measureText(testLine);
+
+            if (metrics.width > maxWidth && currentLine) {
+              lines.push(currentLine);
+              currentLine = word;
+            } else {
+              currentLine = testLine;
+            }
+          });
+
+          if (currentLine) {
+            lines.push(currentLine);
+          }
+
+          return lines;
+        };
+
+        const wrappedLines = wrapText(scripturalPoint, maxTextWidth);
+        const lineHeight = audioMode ? 12 : 16;
+        const labelHeight = audioMode ? 12 : 16;
+        discussionPointHeight = labelHeight + (wrappedLines.length * lineHeight) + boxPadding * 2 + 10; // Extra spacing
+
+        // Draw box background
+        ctx.fillStyle = darkMode ? '#2d3748' : '#f7fafc';
+        ctx.fillRect(config.padding, discussionY, boxWidth, discussionPointHeight - 10);
+
+        // Draw box border
+        ctx.strokeStyle = darkMode ? '#4a5568' : '#e2e8f0';
+        ctx.lineWidth = audioMode ? 2 : 1;
+        ctx.strokeRect(config.padding, discussionY, boxWidth, discussionPointHeight - 10);
+
+        // Draw label - centered and larger
+        ctx.fillStyle = darkMode ? '#a78bfa' : '#6366f1';
+        ctx.font = `${audioMode ? '' : 'bold '}${audioMode ? '10' : '14'}px ${config.fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.fillText(discussionLabel, width / 2, discussionY + boxPadding + 12);
+
+        // Draw wrapped text - reset to left alignment
+        ctx.fillStyle = darkMode ? '#e2e8f0' : '#1a202c';
+        ctx.font = `${audioMode ? '8' : '11'}px ${config.fontFamily}`;
+        ctx.textAlign = 'left'; // Reset to left alignment for content text
+
+        wrappedLines.forEach((line, index) => {
+          ctx.fillText(
+            line,
+            config.padding + boxPadding,
+            discussionY + boxPadding + labelHeight + 16 + (index * lineHeight)
+          );
+        });
+      }
+
+      // Table dimensions and position - adjusted for Discussion Point
+      const tableTop = config.padding + config.headerHeight + discussionPointHeight;
       const tableWidth = width - config.padding * 2;
       const tableHeight = (schedule.length + 1) * config.rowHeight; // +1 for header
       
@@ -2202,58 +2295,6 @@ ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 
         
         legendX += legendWidth + 6;
       });
-      
-      // Draw scriptural point if in SMPW mode
-      if (smpwMode && scripturalPoint) {
-        const scriptureY = legendY + 30;
-        const scriptureWidth = width - config.padding * 2;
-        
-        // Draw scripture box background
-        ctx.fillStyle = darkMode ? '#2d3748' : '#f7fafc';
-        ctx.strokeStyle = config.borderColor;
-        ctx.lineWidth = audioMode ? 2 : 1;
-        
-        // Measure and wrap text
-        ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
-        const maxWidth = scriptureWidth - 20;
-        const words = scripturalPoint.split(' ');
-        const lines = [];
-        let currentLine = '';
-        
-        // Break text into lines
-        words.forEach(word => {
-          const testLine = currentLine ? `${currentLine} ${word}` : word;
-          if (ctx.measureText(testLine).width > maxWidth && currentLine) {
-            lines.push(currentLine);
-            currentLine = word;
-          } else {
-            currentLine = testLine;
-          }
-        });
-        if (currentLine) lines.push(currentLine);
-        
-        // Calculate box height based on text
-        const lineHeight = audioMode ? 12 : 16;
-        const textHeight = lines.length * lineHeight;
-        const boxHeight = textHeight + 30;
-        
-        // Draw box
-        ctx.fillRect(config.padding, scriptureY, scriptureWidth, boxHeight);
-        ctx.strokeRect(config.padding, scriptureY, scriptureWidth, boxHeight);
-        
-        // Draw heading
-        ctx.fillStyle = config.textColor;
-        ctx.font = `${audioMode ? 'bold 8' : 'bold 13'}px ${config.fontFamily}`;
-        ctx.textAlign = 'left';
-        ctx.fillText('Scriptural Discussion', config.padding + 10, scriptureY + 18);
-        
-        // Draw text content
-        ctx.font = `${audioMode ? '8' : '12'}px ${config.fontFamily}`;
-        lines.forEach((line, i) => {
-          ctx.fillText(line, config.padding + 10, scriptureY + 36 + (i * lineHeight));
-        });
-      }
-      
       // Convert to image and download
       const image = canvas.toDataURL('image/png');
       const downloadLink = document.createElement('a');
@@ -2331,7 +2372,37 @@ ctx.fillText(slot.compactDisplay, config.padding + 10, y + config.rowHeight / 2 
                 {dateEnabled ? `${dateStr} • ${timeStr}` : timeStr}
               </p>
             </div>
-            
+
+            {/* Discussion Point */}
+            {scripturalPoint && (
+              <div style={{
+                marginBottom: '8px',
+                padding: '8px',
+                background: darkMode ? '#2d3748' : '#f7fafc',
+                border: darkMode ? '1px solid #4a5568' : '1px solid #e2e8f0',
+                borderRadius: audioMode ? '0' : '4px',
+                ...(audioMode ? { borderWidth: '2px' } : {})
+              }}>
+                <div style={{
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  color: darkMode ? '#a78bfa' : '#6366f1',
+                  marginBottom: '4px',
+                  fontFamily: audioMode ? '"Press Start 2P", cursive' : 'inherit'
+                }}>
+                  {smpwMode ? 'Scriptural Discussion' : 'Discussion Point'}
+                </div>
+                <div style={{
+                  fontSize: '11px',
+                  color: darkMode ? '#e2e8f0' : '#1a202c',
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: audioMode ? '"Press Start 2P", cursive' : 'inherit'
+                }}>
+                  {scripturalPoint}
+                </div>
+              </div>
+            )}
+
             {/* Compact Schedule Table - Using pure HTML table for better rendering */}
             <table style={{ 
               width: '100%', 
@@ -2751,8 +2822,15 @@ return (
           <Users className={`mr-2 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} size={20} />
           Setup
         </h2>
-        
-        <div className="space-y-5">
+
+        <div className="space-y-6">
+          {/* Event Details Section */}
+          <div className={`${darkMode ? 'bg-gray-750 border-gray-700' : 'bg-gray-50 border-gray-200'} ${audioMode ? 'eight-bit-panel' : 'rounded-lg'} p-4 border space-y-4`}>
+            <h3 className={`text-sm font-semibold ${darkMode ? 'text-indigo-400' : 'text-indigo-600'} uppercase tracking-wide mb-3 ${audioMode ? 'eight-bit-text' : ''}`}>
+              <Building className="inline-block mr-1 mb-0.5" size={14} />
+              Event Details
+            </h3>
+
           {/* Location Name */}
           <div>
             <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
@@ -2763,7 +2841,7 @@ return (
               <select
                 value={locationName}
                 onChange={(e) => setLocationName(e.target.value)}
-                className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                className={`w-full p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
               >
                 <option value="">Select location (optional)</option>
                 {smpwLocations.map((location, index) => (
@@ -2776,11 +2854,26 @@ return (
                 value={locationName}
                 onChange={(e) => setLocationName(e.target.value)}
                 placeholder="Enter location name"
-                className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                className={`w-full p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
               />
             )}
           </div>
-          
+
+          {/* Discussion Point - Available in all modes */}
+          <div>
+            <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
+              <Info className="inline-block mr-1 mb-0.5" size={16} />
+              {smpwMode ? "Share your Scriptural Point (Optional)" : "Discussion Point (Optional)"}
+            </label>
+            <textarea
+              value={scripturalPoint}
+              onChange={(e) => setScripturalPoint(e.target.value)}
+              placeholder={smpwMode ? "Enter a scriptural discussion point..." : "Enter a discussion point or message..."}
+              rows="3"
+              className={`w-full p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+            />
+          </div>
+
           {/* Multiple Locations Toggle */}
           <div className="flex items-center">
             <input
@@ -2788,7 +2881,7 @@ return (
               id="multipleLocations"
               checked={multipleLocations}
               onChange={handleMultipleLocationsChange}
-              className={`h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 ${audioMode ? 'eight-bit-checkbox' : 'rounded'}`}
+              className={`h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 ${audioMode ? 'eight-bit-checkbox' : 'rounded'}`}
             />
             <label
               htmlFor="multipleLocations"
@@ -2816,7 +2909,7 @@ return (
                     value={name}
                     onChange={(e) => handleLocationNameChange(index, e.target.value)}
                     placeholder={`Location ${index + 1}`}
-                    className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                    className={`w-full p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                   />
                 </div>
               ))}
@@ -2853,11 +2946,20 @@ return (
                 type="date"
                 value={timeRange.date}
                 onChange={(e) => handleTimeChange('date', e.target.value)}
-                className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                className={`w-full p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
               />
             )}
           </div>
-          
+          </div>
+          {/* End Event Details Section */}
+
+          {/* Schedule Settings Section */}
+          <div className={`${darkMode ? 'bg-gray-750 border-gray-700' : 'bg-gray-50 border-gray-200'} ${audioMode ? 'eight-bit-panel' : 'rounded-lg'} p-4 border space-y-4`}>
+            <h3 className={`text-sm font-semibold ${darkMode ? 'text-indigo-400' : 'text-indigo-600'} uppercase tracking-wide mb-3 ${audioMode ? 'eight-bit-text' : ''}`}>
+              <Clock className="inline-block mr-1 mb-0.5" size={14} />
+              Schedule Settings
+            </h3>
+
           {/* Time Range - Improved for mobile */}
           <div>
             <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
@@ -2873,7 +2975,7 @@ return (
                   type="time"
                   value={timeRange.startTime}
                   onChange={(e) => handleTimeChange('startTime', e.target.value)}
-                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                  className={`w-full p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                 />
               </div>
               <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center sm:mx-2 ${audioMode ? 'eight-bit-text' : ''}`}>to</span>
@@ -2885,7 +2987,7 @@ return (
                   type="time"
                   value={timeRange.endTime}
                   onChange={(e) => handleTimeChange('endTime', e.target.value)}
-                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                  className={`w-full p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                 />
               </div>
             </div>
@@ -2901,7 +3003,7 @@ return (
               <select
                 value={timeRange.isCustomInterval ? 'custom' : timeRange.interval}
                 onChange={(e) => handleTimeChange('interval', e.target.value)}
-                className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded appearance-none'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                className={`w-full p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded appearance-none'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
               >
                 <option value="20">20 minutes</option>
                 <option value="25">25 minutes</option>
@@ -2912,7 +3014,7 @@ return (
                 <ChevronDown size={16} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
               </div>
             </div>
-            
+
             {/* Custom interval input */}
             {timeRange.isCustomInterval && (
               <div className="mt-2">
@@ -2925,29 +3027,21 @@ return (
                   max="120"
                   value={timeRange.customInterval}
                   onChange={(e) => handleTimeChange('customInterval', e.target.value)}
-                  className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                  className={`w-full p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                 />
               </div>
             )}
           </div>
-          
-          {/* Scriptural Point (SMPW Mode only) */}
-          {smpwMode && (
-            <div>
-              <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
-                <Info className="inline-block mr-1 mb-0.5" size={16} />
-                Share your Scriptural Point (Optional)
-              </label>
-              <textarea
-                value={scripturalPoint}
-                onChange={(e) => setScripturalPoint(e.target.value)}
-                placeholder="Enter a scriptural discussion point..."
-                rows="3"
-                className={`w-full p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
-              />
-            </div>
-          )}
-          
+          </div>
+          {/* End Schedule Settings Section */}
+
+          {/* Volunteers Section */}
+          <div className={`${darkMode ? 'bg-gray-750 border-gray-700' : 'bg-gray-50 border-gray-200'} ${audioMode ? 'eight-bit-panel' : 'rounded-lg'} p-4 border space-y-4`}>
+            <h3 className={`text-sm font-semibold ${darkMode ? 'text-indigo-400' : 'text-indigo-600'} uppercase tracking-wide mb-3 ${audioMode ? 'eight-bit-text' : ''}`}>
+              <Users className="inline-block mr-1 mb-0.5" size={14} />
+              Volunteers
+            </h3>
+
           {/* Volunteers - Improved spacing for mobile with delete buttons */}
           <div>
             <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
@@ -2964,12 +3058,12 @@ return (
                     value={volunteer}
                     onChange={(e) => handleVolunteerChange(index, e.target.value)}
                     placeholder={`Volunteer ${index + 1}`}
-                    className={`flex-1 p-2 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'border-gray-300'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                    className={`flex-1 p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
                   />
                   <button
                     onClick={() => deleteVolunteer(index)}
                     disabled={volunteers.length <= 2} // Prevent deletion if only 2 volunteers
-                    className={`p-2 ${audioMode ? 'eight-bit-button' : 'rounded'} ${
+                    className={`p-3 ${audioMode ? 'eight-bit-button' : 'rounded'} ${
                       volunteers.length <= 2
                         ? (darkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400')
                         : (darkMode ? 'bg-red-900 text-red-300 hover:bg-red-800' : 'bg-red-100 text-red-500 hover:bg-red-200')
@@ -2983,22 +3077,24 @@ return (
             </div>
             <button
               onClick={addVolunteer}
-              className={`mt-3 inline-flex items-center px-3 py-2 text-sm font-medium ${
-                darkMode 
-                  ? 'text-indigo-300 bg-indigo-900 hover:bg-indigo-800' 
+              className={`mt-3 inline-flex items-center px-4 py-3 text-sm font-medium ${
+                darkMode
+                  ? 'text-indigo-300 bg-indigo-900 hover:bg-indigo-800'
                   : 'text-indigo-600 bg-indigo-100 hover:bg-indigo-200'
               } ${audioMode ? 'eight-bit-button' : 'rounded'}`}
             >
-              <Plus size={16} className="mr-1" />
+              <Plus size={18} className="mr-1" />
               Add Volunteer
             </button>
           </div>
-          
-          {/* Generate Button - Increased touch target for mobile */}
+          </div>
+          {/* End Volunteers Section */}
+
+          {/* Generate Button - Elevated and prominent */}
           <button
             onClick={generateSchedule}
             disabled={isLoading}
-            className={`w-full py-3 px-4 bg-indigo-600 text-white font-medium ${audioMode ? 'eight-bit-button' : 'rounded-md'} hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center justify-center text-base`}
+            className={`w-full py-4 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-lg ${audioMode ? 'eight-bit-button' : 'rounded-lg'} hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center justify-center shadow-lg transform transition hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
           >
             {isLoading ? (
               <>
@@ -3036,9 +3132,22 @@ return (
             </button>
           )}
         </div>
-        
+
         {schedule.length > 0 ? (
           <>
+            {/* Discussion Point Display */}
+            {scripturalPoint && (
+              <div className={`mb-4 p-3 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border ${audioMode ? 'eight-bit-box' : 'rounded-md'}`}>
+                <h3 className={`text-sm font-semibold ${darkMode ? 'text-indigo-400' : 'text-indigo-600'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
+                  <Info className="inline-block mr-1 mb-0.5" size={14} />
+                  {smpwMode ? 'Scriptural Discussion' : 'Discussion Point'}
+                </h3>
+                <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'} whitespace-pre-wrap ${audioMode ? 'eight-bit-text' : ''}`}>
+                  {scripturalPoint}
+                </p>
+              </div>
+            )}
+
             {conflicts.length > 0 && (
               <div className={`mb-4 p-3 ${darkMode ? 'bg-yellow-900 border-yellow-800 text-yellow-200' : 'bg-yellow-50 border-yellow-200 text-yellow-800'} border ${audioMode ? 'eight-bit-box' : 'rounded-md'} text-sm flex items-start`}>
                 <AlertTriangle size={16} className="mr-2 mt-0.5 flex-shrink-0" />

@@ -14,6 +14,7 @@ export const generateScheduleImageBlob = async ({
         try {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Failed to acquire 2D canvas context');
 
              // --- Configuration --- (Adjust as needed, mirroring ScreenshotPreview styling)
             const config = {
@@ -43,7 +44,19 @@ export const generateScheduleImageBlob = async ({
                 textColor: audioMode ? (darkMode ? '#FFFFFF' : '#000000') : (darkMode ? '#e5e7eb' : '#1f2937'), // Tailwind gray
                 mutedTextColor: audioMode ? (darkMode ? '#AAAAAA' : '#787878') : (darkMode ? '#9ca3af' : '#6b7280'), // Tailwind gray
                 fontFamily: audioMode ? '"Press Start 2P", cursive' : 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
-                pixelRatio: window.devicePixelRatio || 1 // Use device pixel ratio for sharpness
+                pixelRatio: window.devicePixelRatio || 1
+            };
+            // Shared rectangle helper (removed later duplicates)
+            const drawRect = (x, y, w, h, fill, stroke = null, lineWidth = 1) => {
+                if (fill) {
+                    ctx.fillStyle = fill;
+                    ctx.fillRect(x, y, w, h);
+                }
+                if (stroke) {
+                    ctx.strokeStyle = stroke;
+                    ctx.lineWidth = lineWidth;
+                    ctx.strokeRect(x, y, w, h);
+                }
             };
 
              // --- Calculate Dimensions ---
@@ -55,7 +68,7 @@ export const generateScheduleImageBlob = async ({
              // Estimate scripture height
             let scriptureHeight = 0;
             let wrappedScriptureLines = [];
-            if (smpwMode && scripturalPoint) {
+            if (scripturalPoint) {
                 const maxScriptureWidth = baseWidth - (config.padding * 2) - (config.scripturePadding * 2);
                 ctx.font = `${audioMode ? '0.7' : '0.75'}em ${config.fontFamily}`; // Approx 12px normal, 8px 8bit
                  // Simple word wrapping logic (improve if needed)
@@ -76,10 +89,10 @@ export const generateScheduleImageBlob = async ({
             }
 
              const headerSectionHeight = config.headerHeight + config.padding;
+             const scriptureSectionHeight = scriptureHeight > 0 ? scriptureHeight + config.padding / 2 : 0; // Place between header and table
              const tableHeight = (schedule.length + 1) * config.rowHeight; // +1 for header row
              const legendSectionHeight = config.legendHeight + config.padding; // Includes padding below legend
-             const scriptureSectionHeight = scriptureHeight > 0 ? scriptureHeight + config.padding : 0; // Includes padding below scripture
-             const totalHeight = headerSectionHeight + tableHeight + legendSectionHeight + scriptureSectionHeight; // Removed bottom padding, add only if needed
+             const totalHeight = headerSectionHeight + scriptureSectionHeight + tableHeight + legendSectionHeight; // Scripture now between header and table
 
              // --- Setup Canvas ---
              canvas.width = baseWidth * config.pixelRatio;
@@ -128,23 +141,48 @@ export const generateScheduleImageBlob = async ({
              ctx.fillText(headerText, baseWidth / 2, currentY + (audioMode ? 8 : 12));
              currentY += (audioMode ? 15 : 20); // Move down past header text
 
+            // --- Discussion Point (at top, before table) ---
+            if (scripturalPoint) {
+                const scriptureBoxY = currentY;
+                const scriptureBoxWidth = baseWidth - config.padding * 2;
+                const scriptureBoxHeight = scriptureHeight;
+                const tableLeft = config.padding;
+
+                // Draw Box
+                const boxFill = audioMode ? (darkMode ? '#1A1A1A' : '#F0F0F0') : (darkMode ? '#1f2937' : '#f9fafb');
+                const boxBorder = config.borderColor;
+                const boxLineWidth = audioMode ? 2 : 1;
+
+                drawRect(tableLeft, scriptureBoxY, scriptureBoxWidth, scriptureBoxHeight, boxFill, boxBorder, boxLineWidth);
+
+                // Draw Header
+                ctx.fillStyle = config.textColor;
+                const scriptureHeaderFontSize = audioMode ? '0.7em' : '0.8em';
+                ctx.font = `bold ${scriptureHeaderFontSize} ${config.fontFamily}`;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                const headerLabel = smpwMode ? 'Scriptural Discussion' : 'Discussion Point';
+                ctx.fillText(headerLabel, tableLeft + config.scripturePadding, scriptureBoxY + config.scripturePadding / 2);
+
+                // Draw Text Content
+                const scriptureTextFontSize = audioMode ? '0.7em' : '0.75em';
+                ctx.font = `${scriptureTextFontSize} ${config.fontFamily}`;
+                let textY = scriptureBoxY + config.scriptureHeaderHeight;
+                wrappedScriptureLines.forEach(line => {
+                    ctx.fillText(line, tableLeft + config.scripturePadding, textY);
+                    textY += config.scriptureLineHeight;
+                });
+
+                currentY += scriptureHeight + config.padding / 2;
+            }
+
             // --- Table ---
             const tableTop = currentY;
             const tableWidth = baseWidth - config.padding * 2;
             const tableLeft = config.padding;
 
-            // Helper to draw bordered rect (for 8-bit mainly)
-             const drawRect = (x, y, w, h, fill, stroke = null, lineWidth = 1) => {
-                 if (fill) {
-                     ctx.fillStyle = fill;
-                     ctx.fillRect(x, y, w, h);
-                 }
-                 if (stroke) {
-                     ctx.strokeStyle = stroke;
-                     ctx.lineWidth = lineWidth;
-                     ctx.strokeRect(x, y, w, h);
-                 }
-             };
+            // Helper to draw bordered rect (removed duplicate; using shared drawRect)
+             // const drawRect = (x, y, w, h, fill, stroke = null, lineWidth = 1) => { ... };
 
              // Draw Table Borders & Backgrounds
              ctx.lineWidth = audioMode ? 2 : 1;
@@ -312,17 +350,27 @@ export const generateScheduleImageBlob = async ({
 
 
              // --- Legend ---
-             currentY = tableTop + tableHeight + config.padding / 2; // Add some space below table
-             const legendY = currentY;
+             currentY = tableTop + tableHeight + config.padding / 2;
+             let legendY = currentY; // changed from const to let (was mutated)
              let legendX = tableLeft;
-             const legendFontSize = audioMode ? '0.55em' : '0.65em'; // ~6px / 10px
-             const legendTagHeight = config.legendHeight / 2;
+             // Fallback shiftCounts computation if not precomputed
+             let shiftCounts = schedule[0]?.shiftCounts || {};
+             if (!shiftCounts || Object.keys(shiftCounts).length === 0) {
+                 shiftCounts = {};
+                 schedule.forEach(slot => {
+                     const ids = multipleLocations
+                         ? slot.locations.flatMap(l => l.volunteers)
+                         : slot.volunteers;
+                     ids.forEach(id => {
+                         if (id) shiftCounts[id] = (shiftCounts[id] || 0) + 1;
+                     });
+                 });
+             }
+             const volunteerIdsInSchedule = Object.keys(shiftCounts).filter(id => shiftCounts[id] > 0);
+
              ctx.font = `${legendFontSize} ${config.fontFamily}`;
              ctx.textBaseline = 'middle';
              ctx.textAlign = 'center';
-
-             const shiftCounts = schedule[0]?.shiftCounts || {};
-             const volunteerIdsInSchedule = Object.keys(shiftCounts).filter(id => shiftCounts[id] > 0);
 
              volunteerIdsInSchedule.forEach(volunteerId => {
                  const count = shiftCounts[volunteerId];
@@ -336,7 +384,7 @@ export const generateScheduleImageBlob = async ({
                           truncatedName = truncatedName.slice(0, -1);
                       }
                       truncatedName += '…';
-                  }
+                 }
                  const legendText = `${truncatedName}: ${count}`;
                  const textMetrics = ctx.measureText(legendText);
                  const legendTagWidth = textMetrics.width + (audioMode ? 10 : 12); // Padding inside tag
@@ -344,7 +392,7 @@ export const generateScheduleImageBlob = async ({
                   // Prevent legend going off canvas - wrap if necessary (simple wrap)
                  if (legendX + legendTagWidth > baseWidth - config.padding) {
                      legendX = tableLeft;
-                     legendY += legendTagHeight + (audioMode ? 3 : 4); // Move to next line
+                     legendY += legendTagHeight + (audioMode ? 3 : 4);
                  }
 
 
@@ -360,41 +408,7 @@ export const generateScheduleImageBlob = async ({
 
                  legendX += legendTagWidth + (audioMode ? 4 : 6); // Space between tags
              });
-
-              currentY = legendY + legendTagHeight + config.padding / 2; // Update Y position below the last legend line
-
-
-             // --- Scriptural Point ---
-             if (smpwMode && scripturalPoint) {
-                 const scriptureBoxY = currentY;
-                 const scriptureBoxWidth = tableWidth;
-                 const scriptureBoxHeight = scriptureHeight; // Calculated earlier
-
-                 // Draw Box
-                 const boxFill = audioMode ? (darkMode ? '#1A1A1A' : '#F0F0F0') : (darkMode ? '#1f2937' : '#f9fafb'); // Similar to alt row
-                 const boxBorder = config.borderColor;
-                 const boxLineWidth = audioMode ? 2 : 1;
-                 drawRect(tableLeft, scriptureBoxY, scriptureBoxWidth, scriptureBoxHeight, boxFill, boxBorder, boxLineWidth);
-
-
-                 // Draw Header
-                 ctx.fillStyle = config.textColor;
-                 const scriptureHeaderFontSize = audioMode ? '0.7em' : '0.8em'; // ~8px / 12px
-                 ctx.font = `bold ${scriptureHeaderFontSize} ${config.fontFamily}`;
-                 ctx.textAlign = 'left';
-                 ctx.textBaseline = 'top';
-                 ctx.fillText('Scriptural Discussion', tableLeft + config.scripturePadding, scriptureBoxY + config.scripturePadding / 2);
-
-                 // Draw Text Content
-                 const scriptureTextFontSize = audioMode ? '0.7em' : '0.75em'; // ~8px / 12px
-                 ctx.font = `${scriptureTextFontSize} ${config.fontFamily}`;
-                 let textY = scriptureBoxY + config.scriptureHeaderHeight;
-                 wrappedScriptureLines.forEach(line => {
-                     ctx.fillText(line, tableLeft + config.scripturePadding, textY);
-                     textY += config.scriptureLineHeight;
-                 });
-             }
-
+             currentY = legendY + legendTagHeight + config.padding / 2; // Update Y position below the last legend line
 
              // --- Resolve Promise ---
             canvas.toBlob((blob) => {
