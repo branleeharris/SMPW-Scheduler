@@ -2787,7 +2787,7 @@ return (
   )}
   
   {/* Header with mobile improvements */}
-  <header className={`bg-gradient-to-r ${darkMode ? 'from-indigo-900 to-purple-900' : 'from-indigo-600 to-purple-600'} py-4 px-4 text-white ${audioMode ? 'eight-bit-header' : ''}`}>
+  <header className={`bg-gradient-to-r ${darkMode ? 'from-slate-800 to-blue-900' : 'from-blue-500 to-blue-700'} py-4 px-4 text-white ${audioMode ? 'eight-bit-header' : ''}`}>
   <div className="max-w-6xl mx-auto">
     <div className="flex flex-col sm:flex-row items-center justify-between">
       <h1 
@@ -2795,7 +2795,7 @@ return (
         onClick={handleTitleClick}
       >
         <Calendar className="mr-2 hidden sm:inline" />
-        <span>{smpwMode ? (audioMode ? "8-BIT SMPW" : "SMPW Scheduler") : (audioMode ? "8-BIT SCHEDULER" : "Volunteer Schedule Builder")}</span>
+        <span>{smpwMode ? (audioMode ? "8-BIT SMPW" : "SMPW Scheduler") : (audioMode ? "8-BIT SCHEDULER" : "SMPW Schedule Builder")}</span>
       </h1>
       
       <div className="flex items-center space-x-2">
@@ -2829,13 +2829,12 @@ return (
           <div className={`${darkMode ? 'bg-gray-750 border-gray-700' : 'bg-gray-50 border-gray-200'} ${audioMode ? 'eight-bit-panel' : 'rounded-lg'} p-4 border space-y-4`}>
             <h3 className={`text-sm font-semibold ${darkMode ? 'text-indigo-400' : 'text-indigo-600'} uppercase tracking-wide mb-3 ${audioMode ? 'eight-bit-text' : ''}`}>
               <Building className="inline-block mr-1 mb-0.5" size={14} />
-              Event Details
+              Shift Details
             </h3>
 
           {/* Location Name */}
           <div>
             <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
-              <Building className="inline-block mr-1 mb-0.5" size={16} />
               Location Name (Optional)
             </label>
             {smpwMode ? (
@@ -2863,7 +2862,6 @@ return (
           {/* Discussion Point - Available in all modes */}
           <div>
             <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
-              <Info className="inline-block mr-1 mb-0.5" size={16} />
               {smpwMode ? "Share your Scriptural Point (Optional)" : "Discussion Point (Optional)"}
             </label>
             <textarea
@@ -2921,7 +2919,6 @@ return (
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} ${audioMode ? 'eight-bit-text' : ''}`}>
-                <Calendar className="inline-block mr-1 mb-0.5" size={16} />
                 Include Date
               </label>
               <button
@@ -2964,7 +2961,6 @@ return (
           {/* Time Range - Improved for mobile */}
           <div>
             <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
-              <Clock className="inline-block mr-1 mb-0.5" size={16} />
               Shift Time
             </label>
             <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
@@ -2999,7 +2995,6 @@ return (
           {/* Shift Interval */}
           <div>
             <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
-              <Clock className="inline-block mr-1 mb-0.5" size={16} />
               How long should each shift be?
             </label>
             <div className="relative">
@@ -3048,8 +3043,7 @@ return (
           {/* Volunteers - Improved spacing for mobile with delete buttons */}
           <div>
             <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2 ${audioMode ? 'eight-bit-text' : ''}`}>
-              <Users className="inline-block mr-1 mb-0.5" size={16} />
-              Volunteers {multipleLocations && <span className="text-xs font-normal ml-1">
+              Volunteer Names {multipleLocations && <span className="text-xs font-normal ml-1">
                 (min 4 required for multiple locations)
               </span>}
             </label>
@@ -3097,7 +3091,7 @@ return (
           <button
             onClick={generateSchedule}
             disabled={isLoading}
-            className={`w-full py-4 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-lg ${audioMode ? 'eight-bit-button' : 'rounded-lg'} hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center justify-center shadow-lg transform transition hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
+            className={`w-full py-4 px-6 bg-gradient-to-r ${darkMode ? 'from-slate-800 to-blue-900' : 'from-blue-500 to-blue-700'} text-white font-semibold text-lg ${audioMode ? 'eight-bit-button' : 'rounded-lg'} ${darkMode ? 'hover:from-slate-700 hover:to-blue-800' : 'hover:from-blue-600 hover:to-blue-800'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-center shadow-lg transform transition hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
           >
             {isLoading ? (
               <>
@@ -3381,7 +3375,7 @@ return (
       </div>
     )}
     <div className="flex flex-col sm:flex-row justify-between items-center text-center text-xs w-full mt-6">
-      <div className={audioMode ? 'eight-bit-text' : ''}>v 1.5.5 {audioMode && "8-BIT MODE"}</div>
+      <div className={audioMode ? 'eight-bit-text' : ''}>v 2.0.1 {audioMode && "8-BIT MODE"}</div>
       <div className={`mt-1 sm:mt-0 ${darkMode ? 'text-gray-500' : 'text-gray-400'} ${audioMode ? 'eight-bit-text' : ''}`}>
         {schedulesGenerated.toLocaleString()} schedules made with this tool
       </div>
