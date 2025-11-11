@@ -2968,7 +2968,7 @@ return (
               Shift Time
             </label>
             <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-              <div className="w-full">
+              <div className="w-full min-w-0">
                 <label className={`block text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} mb-1 ${audioMode ? 'eight-bit-text' : ''}`}>
                   Start Time
                 </label>
@@ -2976,11 +2976,12 @@ return (
                   type="time"
                   value={timeRange.startTime}
                   onChange={(e) => handleTimeChange('startTime', e.target.value)}
-                  className={`w-full px-2 py-3 sm:p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base`}
+                  className={`w-full px-1.5 py-2.5 sm:p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base box-border`}
+                  style={{ minWidth: 0 }}
                 />
               </div>
-              <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center sm:mx-2 ${audioMode ? 'eight-bit-text' : ''}`}>to</span>
-              <div className="w-full">
+              <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center sm:mx-2 ${audioMode ? 'eight-bit-text' : ''} flex-shrink-0`}>to</span>
+              <div className="w-full min-w-0">
                 <label className={`block text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} mb-1 ${audioMode ? 'eight-bit-text' : ''}`}>
                   End Time
                 </label>
@@ -2988,7 +2989,8 @@ return (
                   type="time"
                   value={timeRange.endTime}
                   onChange={(e) => handleTimeChange('endTime', e.target.value)}
-                  className={`w-full px-2 py-3 sm:p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base`}
+                  className={`w-full px-1.5 py-2.5 sm:p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base box-border`}
+                  style={{ minWidth: 0 }}
                 />
               </div>
             </div>
