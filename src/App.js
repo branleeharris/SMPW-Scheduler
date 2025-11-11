@@ -2976,7 +2976,7 @@ return (
                   type="time"
                   value={timeRange.startTime}
                   onChange={(e) => handleTimeChange('startTime', e.target.value)}
-                  className={`w-full p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                  className={`w-full px-2 py-3 sm:p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base`}
                 />
               </div>
               <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center sm:mx-2 ${audioMode ? 'eight-bit-text' : ''}`}>to</span>
@@ -2988,7 +2988,7 @@ return (
                   type="time"
                   value={timeRange.endTime}
                   onChange={(e) => handleTimeChange('endTime', e.target.value)}
-                  className={`w-full p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base`}
+                  className={`w-full px-2 py-3 sm:p-3 border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} ${audioMode ? 'eight-bit-button' : 'rounded'} focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base`}
                 />
               </div>
             </div>
