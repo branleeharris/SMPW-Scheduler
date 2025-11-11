@@ -1,6 +1,6 @@
 // src/firebase.js
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onValue, set, increment, get } from 'firebase/database';
+import { getDatabase, ref, onValue, set, get } from 'firebase/database';
 
 // Your web app's Firebase configuration
 // Replace this with your actual Firebase config from the Firebase console

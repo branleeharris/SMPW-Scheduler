@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Clock, Users, Calendar, ChevronDown, Plus, AlertTriangle, Camera, X, Smartphone, Download, Info, Shuffle, Building, Sun, Moon, Copy, Check, AlertCircle, Volume2, VolumeX, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
-import html2canvas from 'html2canvas';
 import { incrementScheduleCounter, getScheduleCount } from './firebase';
 
 // Import 8-bit CSS
@@ -190,6 +189,7 @@ const ScheduleBuilder = () => {
         setColors(generateColorsForIds(internalVolunteers));
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioMode]);
   
   // Toggle dark mode
@@ -210,6 +210,7 @@ const ScheduleBuilder = () => {
       const internalVolunteers = Object.keys(volunteerMap);
       setColors(generateColorsForIds(internalVolunteers));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [darkMode, volunteerMap]);
   
   // Toggle date enabled
@@ -3214,7 +3215,6 @@ return (
                           <React.Fragment key={locIndex}>
                             {[0, 1].map(volIndex => {
                               const volunteerId = location.volunteers[volIndex];
-                              const displayName = volunteerMap[volunteerId] || '';
                               const hasConflict = conflicts.some(c => 
                                 c.slotIndex === slotIndex && 
                                 c.locationIndex === locIndex && 
@@ -3291,7 +3291,6 @@ return (
                         </td>
                         {[0, 1].map(volIndex => {
                           const volunteerId = slot.volunteers[volIndex];
-                          const displayName = volunteerMap[volunteerId] || '';
                           const hasConflict = conflicts.some(c => 
                             c.slotIndex === slotIndex && c.volunteer === volunteerId
                           );
